@@ -895,9 +895,8 @@ class ResponseParser:
         for row in meta_container.get('metadataRows', []):
             for part in row.get('metadataParts', []):
                 text = part.get('text', {}).get('content', '')
-                if text and 'view' not in text.lower() and 'ago' not in text.lower():
-                    if not channel:
-                        channel = text
+                if text and not channel and 'view' not in text.lower() and 'ago' not in text.lower():
+                    channel = text
 
         # Duration from thumbnail badge
         duration_text = ''
