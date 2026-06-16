@@ -299,14 +299,25 @@ class ResponseParser:
         for item in items:
             # Video items
             rich_item = item.get('richItemRenderer', {})
-            renderer = rich_item.get('content', {}).get('videoRenderer')
+            content = rich_item.get('content', {})
+
+            # Legacy format: videoRenderer
+            renderer = content.get('videoRenderer')
             if renderer:
                 video = ResponseParser.extract_video_renderer(renderer)
                 if video:
                     videos.append(video)
                 continue
 
-            # Continuation token
+            # New format: lockupViewModel (YouTube 2025+ change)
+            lockup = content.get('lockupViewModel')
+            if lockup and lockup.get('contentType') == 'LOCKUP_CONTENT_TYPE_VIDEO':
+                video = ResponseParser._parse_video_lockup(lockup)
+                if video:
+                    videos.append(video)
+                continue
+
+            # Continuation token (legacy)
             cont_item = item.get('continuationItemRenderer', {})
             cont_endpoint = cont_item.get('continuationEndpoint', {})
             cont_command = cont_endpoint.get('continuationCommand', {})
@@ -460,27 +471,33 @@ class ResponseParser:
             owner = playlist_header.get('ownerText', {})
             channel = ResponseParser.get_text(owner)
 
-        # Fallback: metadata.playlistMetadataRenderer (newer responses)
+        # pageHeaderRenderer (current format)
+        page_header = header.get('pageHeaderRenderer', {})
+        ph_content = page_header.get('content', {}).get('pageHeaderViewModel', {})
         if not title:
-            meta_renderer = data.get('metadata', {}).get('playlistMetadataRenderer', {})
-            if meta_renderer:
-                title = meta_renderer.get('title')
-
-        # Fallback: pageHeaderRenderer for channel name
+            title = (
+                ph_content.get('title', {})
+                .get('dynamicTextViewModel', {})
+                .get('text', {})
+                .get('content', '')
+            )
         if not channel:
-            page_header = header.get('pageHeaderRenderer', {})
-            ph_content = page_header.get('content', {}).get('pageHeaderViewModel', {})
             ph_meta = ph_content.get('metadata', {}).get('contentMetadataViewModel', {})
             for row in ph_meta.get('metadataRows', []):
                 for part in row.get('metadataParts', []):
                     avatar = part.get('avatarStack', {}).get('avatarStackViewModel', {})
                     text = avatar.get('text', {}).get('content', '')
                     if text:
-                        # Text is like "by Channel Name"
                         if text.startswith('by '):
                             channel = text.removeprefix('by ').strip()
                         else:
                             channel = text
+
+        # Fallback: metadata.playlistMetadataRenderer
+        if not title:
+            meta_renderer = data.get('metadata', {}).get('playlistMetadataRenderer', {})
+            if meta_renderer:
+                title = meta_renderer.get('title')
 
         # Extract videos from contents
         try:
@@ -494,8 +511,23 @@ class ResponseParser:
             tab_content = tab.get('tabRenderer', {}).get('content', {})
             section_list = tab_content.get('sectionListRenderer', {})
             for section in section_list.get('contents', []):
+                # New format: continuationItemViewModel at section level
+                token = ResponseParser._extract_continuation_token_vm(section)
+                if token:
+                    continuation = token
+                    continue
+
                 item_section = section.get('itemSectionRenderer', {})
                 for item in item_section.get('contents', []):
+                    # New format: lockupViewModel directly in itemSection
+                    lockup = item.get('lockupViewModel')
+                    if lockup and lockup.get('contentType') == 'LOCKUP_CONTENT_TYPE_VIDEO':
+                        entry = ResponseParser._parse_playlist_video_lockup(lockup)
+                        if entry:
+                            videos.append(entry)
+                        continue
+
+                    # Legacy format: playlistVideoListRenderer
                     playlist_renderer = item.get('playlistVideoListRenderer', {})
                     for content in playlist_renderer.get('contents', []):
                         video = content.get('playlistVideoRenderer')
@@ -505,7 +537,7 @@ class ResponseParser:
                                 videos.append(entry)
                             continue
 
-                        # Continuation token
+                        # Continuation token (legacy)
                         cont = content.get('continuationItemRenderer', {})
                         cont_ep = cont.get('continuationEndpoint', {})
                         cont_cmd = cont_ep.get('continuationCommand', {})
@@ -539,6 +571,7 @@ class ResponseParser:
                 .get('continuationItems', [])
             )
             for item in items:
+                # Legacy format
                 video = item.get('playlistVideoRenderer')
                 if video:
                     entry = ResponseParser._parse_playlist_video(video)
@@ -546,6 +579,22 @@ class ResponseParser:
                         videos.append(entry)
                     continue
 
+                # New format: lockupViewModel inside itemSectionRenderer
+                isr = item.get('itemSectionRenderer', {})
+                for content in isr.get('contents', []):
+                    lockup = content.get('lockupViewModel')
+                    if lockup and lockup.get('contentType') == 'LOCKUP_CONTENT_TYPE_VIDEO':
+                        entry = ResponseParser._parse_playlist_video_lockup(lockup)
+                        if entry:
+                            videos.append(entry)
+
+                # New continuation format
+                token = ResponseParser._extract_continuation_token_vm(item)
+                if token:
+                    continuation = token
+                    continue
+
+                # Legacy continuation format
                 cont = item.get('continuationItemRenderer', {})
                 cont_ep = cont.get('continuationEndpoint', {})
                 cont_cmd = cont_ep.get('continuationCommand', {})
@@ -741,6 +790,150 @@ class ResponseParser:
                             videos.append(video)
 
         return SearchResult(query=query, videos=videos)
+
+    @staticmethod
+    def _parse_video_lockup(lockup: dict) -> VideoResult | None:
+        """Parse a lockupViewModel (new format) into a VideoResult."""
+        video_id = lockup.get('contentId', '')
+        if not video_id:
+            return None
+
+        metadata = lockup.get('metadata', {}).get('lockupMetadataViewModel', {})
+        title = metadata.get('title', {}).get('content', '')
+
+        # Extract metadata rows (view count, published date)
+        view_count = None
+        published_text = None
+        meta_container = metadata.get('metadata', {}).get('contentMetadataViewModel', {})
+        for row in meta_container.get('metadataRows', []):
+            for part in row.get('metadataParts', []):
+                text = part.get('text', {}).get('content', '')
+                if not text:
+                    continue
+                if 'view' in text.lower() or 'watching' in text.lower():
+                    view_count = text
+                elif text and not view_count:
+                    # Could be channel name or other info
+                    pass
+                else:
+                    published_text = text
+
+        # Re-parse: metadata parts come in pairs per row typically
+        # Row 0 often has views + date
+        parts_list: list[str] = []
+        for row in meta_container.get('metadataRows', []):
+            for part in row.get('metadataParts', []):
+                text = part.get('text', {}).get('content', '')
+                if text:
+                    parts_list.append(text)
+
+        view_count = None
+        published_text = None
+        for text in parts_list:
+            if 'view' in text.lower() or 'watching' in text.lower():
+                view_count = text
+            elif 'ago' in text.lower() or 'streamed' in text.lower():
+                published_text = text
+
+        # Duration from thumbnail badge
+        duration_text = ''
+        is_live = False
+        is_short = False
+        thumb_vm = lockup.get('contentImage', {}).get('thumbnailViewModel', {})
+        for overlay in thumb_vm.get('overlays', []):
+            bottom = overlay.get('thumbnailBottomOverlayViewModel', {})
+            for badge in bottom.get('badges', []):
+                bvm = badge.get('thumbnailBadgeViewModel', {})
+                badge_style = bvm.get('badgeStyle', '')
+                badge_text = bvm.get('text', '')
+                if badge_style == 'THUMBNAIL_OVERLAY_BADGE_STYLE_LIVE':
+                    is_live = True
+                elif badge_text:
+                    duration_text = badge_text
+
+        # Thumbnails
+        sources = thumb_vm.get('image', {}).get('sources', [])
+        thumbnails = [
+            Thumbnail(url=s.get('url', ''), width=s.get('width', 0), height=s.get('height', 0))
+            for s in sources if s.get('url')
+        ]
+
+        return VideoResult(
+            video_id=video_id,
+            title=title,
+            channel='',
+            channel_id=None,
+            duration=duration_text or None,
+            duration_seconds=ResponseParser.parse_duration(duration_text),
+            published_text=published_text,
+            url=f'https://www.youtube.com/watch?v={video_id}',
+            is_live=is_live,
+            is_short=is_short,
+            view_count=view_count,
+            short_view_count=None,
+            thumbnails=thumbnails,
+            moving_thumbnail=None,
+            channel_thumbnail=None,
+            description_snippet=None,
+            is_verified=False,
+            badges=[],
+        )
+
+    @staticmethod
+    def _parse_playlist_video_lockup(lockup: dict) -> PlaylistEntry | None:
+        """Parse a lockupViewModel (new format) into a PlaylistEntry."""
+        video_id = lockup.get('contentId', '')
+        if not video_id:
+            return None
+
+        metadata = lockup.get('metadata', {}).get('lockupMetadataViewModel', {})
+        title = metadata.get('title', {}).get('content', '')
+
+        # Extract channel name from metadata rows
+        channel = ''
+        meta_container = metadata.get('metadata', {}).get('contentMetadataViewModel', {})
+        for row in meta_container.get('metadataRows', []):
+            for part in row.get('metadataParts', []):
+                text = part.get('text', {}).get('content', '')
+                if text and 'view' not in text.lower() and 'ago' not in text.lower():
+                    if not channel:
+                        channel = text
+
+        # Duration from thumbnail badge
+        duration_text = ''
+        thumb_vm = lockup.get('contentImage', {}).get('thumbnailViewModel', {})
+        for overlay in thumb_vm.get('overlays', []):
+            bottom = overlay.get('thumbnailBottomOverlayViewModel', {})
+            for badge in bottom.get('badges', []):
+                bvm = badge.get('thumbnailBadgeViewModel', {})
+                text = bvm.get('text', '')
+                if text:
+                    duration_text = text
+
+        # Thumbnails
+        sources = thumb_vm.get('image', {}).get('sources', [])
+        thumbnails = [
+            Thumbnail(url=s.get('url', ''), width=s.get('width', 0), height=s.get('height', 0))
+            for s in sources if s.get('url')
+        ]
+
+        return PlaylistEntry(
+            video_id=video_id,
+            title=title,
+            channel=channel,
+            duration=duration_text or None,
+            duration_seconds=ResponseParser.parse_duration(duration_text),
+            position=0,
+            url=f'https://www.youtube.com/watch?v={video_id}',
+            thumbnails=thumbnails,
+        )
+
+    @staticmethod
+    def _extract_continuation_token_vm(item: dict) -> str | None:
+        """Extract continuation token from a continuationItemViewModel."""
+        civm = item.get('continuationItemViewModel', {})
+        inner = civm.get('continuationCommand', {}).get('innertubeCommand', {})
+        return inner.get('continuationCommand', {}).get('token')
 
     @staticmethod
     def _parse_playlist_video(renderer: dict) -> PlaylistEntry | None:
