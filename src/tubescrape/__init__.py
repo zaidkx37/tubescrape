@@ -43,10 +43,11 @@ from tubescrape.models import (
     Transcript,
     TranscriptListEntry,
     TranscriptSegment,
+    TranslationLanguage,
     VideoResult,
 )
 
-__version__ = '0.1.2'
+__version__ = '0.1.4'
 
 __all__ = [
     # Client
@@ -62,6 +63,7 @@ __all__ = [
     'ShortsResult',
     'Thumbnail',
     'Transcript',
+    'TranslationLanguage',
     'TranscriptListEntry',
     'TranscriptSegment',
     'VideoResult',

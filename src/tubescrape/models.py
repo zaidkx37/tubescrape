@@ -215,6 +215,20 @@ class Transcript:
 
 
 @dataclass(frozen=True, slots=True)
+class TranslationLanguage:
+    """A language available for transcript translation."""
+
+    language: str
+    language_code: str
+
+    def to_dict(self) -> dict:
+        return {
+            'language': self.language,
+            'language_code': self.language_code,
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class TranscriptListEntry:
     """Metadata about an available transcript (before fetching)."""
 
@@ -223,6 +237,7 @@ class TranscriptListEntry:
     is_generated: bool
     is_translatable: bool
     base_url: str = field(repr=False)
+    translation_languages: tuple[TranslationLanguage, ...] = field(default=(), repr=False)
 
     def to_dict(self) -> dict:
         return {
@@ -230,6 +245,7 @@ class TranscriptListEntry:
             'language_code': self.language_code,
             'is_generated': self.is_generated,
             'is_translatable': self.is_translatable,
+            'translation_languages': [tl.to_dict() for tl in self.translation_languages],
         }
 
 

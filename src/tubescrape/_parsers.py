@@ -14,6 +14,7 @@ from tubescrape.models import (
     Thumbnail,
     TranscriptListEntry,
     TranscriptSegment,
+    TranslationLanguage,
     VideoResult,
 )
 
@@ -343,21 +344,42 @@ class ResponseParser:
         return caption_tracks, translation_languages
 
     @staticmethod
-    def parse_caption_tracks(caption_tracks: list[dict]) -> list[TranscriptListEntry]:
+    def parse_translation_languages(raw: list[dict]) -> tuple[TranslationLanguage, ...]:
+        """Convert raw translation language dicts into TranslationLanguage objects."""
+        return tuple(
+            TranslationLanguage(
+                language=ResponseParser.get_text(tl.get('languageName', {}))
+                if isinstance(tl.get('languageName'), dict)
+                else str(tl.get('languageName', '')),
+                language_code=tl.get('languageCode', ''),
+            )
+            for tl in raw
+        )
+
+    @staticmethod
+    def parse_caption_tracks(
+        caption_tracks: list[dict],
+        translation_languages: list[dict] | None = None,
+    ) -> list[TranscriptListEntry]:
         """Convert raw caption track dicts into TranscriptListEntry objects."""
+        parsed_tl = ResponseParser.parse_translation_languages(
+            translation_languages or []
+        )
         entries: list[TranscriptListEntry] = []
         for track in caption_tracks:
             lang_code = track.get('languageCode', '')
             name = track.get('name', {})
             language = ResponseParser.get_text(name) if isinstance(name, dict) else str(name)
             is_auto = track.get('kind', '') == 'asr'
+            is_translatable = track.get('isTranslatable', False)
 
             entries.append(TranscriptListEntry(
                 language=language,
                 language_code=lang_code,
                 is_generated=is_auto,
-                is_translatable=track.get('isTranslatable', False),
+                is_translatable=is_translatable,
                 base_url=track.get('baseUrl', ''),
+                translation_languages=parsed_tl if is_translatable else (),
             ))
         return entries
 
