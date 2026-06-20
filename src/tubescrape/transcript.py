@@ -43,14 +43,15 @@ class YouTubeTranscript:
 
         Returns:
             List of TranscriptListEntry with language and availability info.
+            Each entry includes translation_languages if the track is translatable.
         """
-        caption_tracks, _ = self._get_caption_tracks(video_id)
-        return ResponseParser.parse_caption_tracks(caption_tracks)
+        caption_tracks, translation_languages = self._get_caption_tracks(video_id)
+        return ResponseParser.parse_caption_tracks(caption_tracks, translation_languages)
 
     async def alist_transcripts(self, video_id: str) -> list[TranscriptListEntry]:
         """Async version of list_transcripts."""
-        caption_tracks, _ = await self._aget_caption_tracks(video_id)
-        return ResponseParser.parse_caption_tracks(caption_tracks)
+        caption_tracks, translation_languages = await self._aget_caption_tracks(video_id)
+        return ResponseParser.parse_caption_tracks(caption_tracks, translation_languages)
 
     def get_transcript(
         self,
