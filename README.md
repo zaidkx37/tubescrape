@@ -26,7 +26,8 @@
 - **Playlists** — full pagination with position tracking and metadata
 - **Async-first** — every method has an `async` variant for concurrent workloads
 - **JSON-ready** — every result object has `.to_dict()` for instant serialization
-- **Proxy rotation** — built-in support for residential proxy lists
+- **Proxy rotation** — built-in support with separate transcript proxy pool for mass scraping
+- **Production-ready** — auto-retry on rate limits, 5xx errors, captcha, and proxy blocks
 - **Three interfaces** — Python SDK, CLI with Rich tables, REST API with Swagger docs
 - **Zero config** — no API key, no OAuth, no setup
 - **Lightweight** — only `httpx` as a core dependency
@@ -277,9 +278,17 @@ yt = YouTube(proxy='socks5://user:pass@proxy:1080')
 
 # Custom timeout and retries
 yt = YouTube(proxy='http://proxy:8080', timeout=60.0, max_retries=5)
+
+# Separate proxy pool for transcripts (recommended for mass scraping)
+# YouTube's player/caption endpoints are stricter about datacenter IPs.
+# Use residential proxies for transcripts, cheaper datacenter proxies for the rest.
+yt = YouTube(
+    proxies=['http://dc-proxy1:8080', 'http://dc-proxy2:8080'],
+    transcript_proxies=['http://residential1:8080', 'http://residential2:8080'],
+)
 ```
 
-> **Tip:** YouTube blocks cloud IPs aggressively. Use rotating residential proxies (BrightData, SmartProxy, Oxylabs) for production.
+> **Tip:** YouTube blocks datacenter IPs aggressively, especially for transcripts. Use rotating residential proxies (BrightData, SmartProxy, Oxylabs) for production. The `transcript_proxy` / `transcript_proxies` parameters let you use residential proxies only where needed.
 
 ---
 
@@ -355,7 +364,9 @@ All exceptions inherit from `YouTubeError`:
 ```
 YouTubeError
 ├── RequestError
-│   ├── RateLimitError          # HTTP 429
+│   ├── RateLimitError          # HTTP 429, retried automatically
+│   ├── ProxyBlockedError       # Proxy firewall block, retried with rotation
+│   ├── CaptchaError            # Bot verification challenge, retried with rotation
 │   └── BotDetectedError        # HTTP 403
 ├── VideoUnavailableError       # private, deleted, region-locked
 │   └── AgeRestrictedError
@@ -370,12 +381,14 @@ YouTubeError
 ```
 
 ```python
-from tubescrape import YouTube, YouTubeError, RateLimitError
+from tubescrape import YouTube, YouTubeError, RateLimitError, ProxyBlockedError
 
 try:
     results = yt.search('python')
 except RateLimitError:
-    print('Rate limited — use a proxy')
+    print('Rate limited, use a proxy')
+except ProxyBlockedError:
+    print('Proxy blocked by firewall, use residential proxies')
 except YouTubeError as e:
     print(f'YouTube error: {e}')
 ```

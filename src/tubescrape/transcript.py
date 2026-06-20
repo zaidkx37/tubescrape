@@ -10,6 +10,7 @@ from tubescrape.exceptions import (
     AgeRestrictedError,
     APIKeyNotFoundError,
     BotDetectedError,
+    CaptchaError,
     TranscriptFetchError,
     TranscriptsDisabledError,
     TranscriptsNotAvailableError,
@@ -156,47 +157,84 @@ class YouTubeTranscript:
             return transcript.without_timestamps()
         return transcript
 
+    CAPTCHA_MAX_RETRIES: int = 3
+
     def _get_caption_tracks(self, video_id: str) -> tuple[list[dict], list[dict]]:
-        """Call InnerTube player API to get available caption tracks."""
-        api_key = self._get_api_key(video_id)
+        """Call InnerTube player API to get available caption tracks.
 
-        payload = InnerTube.build_player_payload(video_id)
-        response = self._http.post(
-            f'{InnerTube.PLAYER_URL}?key={api_key}',
-            json=payload,
-        )
-        data = response.json()
+        Retries with proxy rotation on captcha challenges.
+        """
+        last_error: Exception | None = None
 
-        self._check_playability(data, video_id)
+        for attempt in range(self.CAPTCHA_MAX_RETRIES):
+            api_key = self._get_api_key(video_id)
 
-        caption_tracks, translation_languages = ResponseParser.parse_player_captions(data)
-        if not caption_tracks:
-            raise TranscriptsDisabledError(video_id)
+            payload = InnerTube.build_player_payload(video_id)
+            response = self._http.transcript_post(
+                f'{InnerTube.PLAYER_URL}?key={api_key}',
+                json=payload,
+            )
+            data = response.json()
 
-        return caption_tracks, translation_languages
+            try:
+                self._check_playability(data, video_id)
+            except CaptchaError as exc:
+                last_error = exc
+                if attempt < self.CAPTCHA_MAX_RETRIES - 1:
+                    logger.warning(
+                        'Captcha for %s (attempt %d/%d), rotating proxy',
+                        video_id, attempt + 1, self.CAPTCHA_MAX_RETRIES,
+                    )
+                    self._http._rotate_proxy()
+                    continue
+                raise
+
+            caption_tracks, translation_languages = ResponseParser.parse_player_captions(data)
+            if not caption_tracks:
+                raise TranscriptsDisabledError(video_id)
+
+            return caption_tracks, translation_languages
+
+        raise last_error or CaptchaError(video_id)
 
     async def _aget_caption_tracks(self, video_id: str) -> tuple[list[dict], list[dict]]:
-        """Async version of _get_caption_tracks."""
-        api_key = await self._aget_api_key(video_id)
+        """Async version of _get_caption_tracks with captcha retry."""
+        last_error: Exception | None = None
 
-        payload = InnerTube.build_player_payload(video_id)
-        response = await self._http.apost(
-            f'{InnerTube.PLAYER_URL}?key={api_key}',
-            json=payload,
-        )
-        data = response.json()
+        for attempt in range(self.CAPTCHA_MAX_RETRIES):
+            api_key = await self._aget_api_key(video_id)
 
-        self._check_playability(data, video_id)
+            payload = InnerTube.build_player_payload(video_id)
+            response = await self._http.transcript_apost(
+                f'{InnerTube.PLAYER_URL}?key={api_key}',
+                json=payload,
+            )
+            data = response.json()
 
-        caption_tracks, translation_languages = ResponseParser.parse_player_captions(data)
-        if not caption_tracks:
-            raise TranscriptsDisabledError(video_id)
+            try:
+                self._check_playability(data, video_id)
+            except CaptchaError as exc:
+                last_error = exc
+                if attempt < self.CAPTCHA_MAX_RETRIES - 1:
+                    logger.warning(
+                        'Captcha for %s (attempt %d/%d), rotating proxy',
+                        video_id, attempt + 1, self.CAPTCHA_MAX_RETRIES,
+                    )
+                    self._http._rotate_proxy()
+                    continue
+                raise
 
-        return caption_tracks, translation_languages
+            caption_tracks, translation_languages = ResponseParser.parse_player_captions(data)
+            if not caption_tracks:
+                raise TranscriptsDisabledError(video_id)
+
+            return caption_tracks, translation_languages
+
+        raise last_error or CaptchaError(video_id)
 
     @staticmethod
     def _check_playability(data: dict, video_id: str) -> None:
-        """Check player response for errors (age restriction, bot detection)."""
+        """Check player response for errors (age restriction, captcha, bot detection)."""
         status = ResponseParser.extract_playability_status(data)
         status_value = status.get('status', '')
         reason = status.get('reason', '')
@@ -208,12 +246,15 @@ class YouTubeTranscript:
             ):
                 raise AgeRestrictedError(video_id, reason)
 
-            if 'not a bot' in reason.lower() or 'bot' in reason.lower():
+            if 'not a bot' in reason.lower():
+                raise CaptchaError(video_id)
+
+            if 'bot' in reason.lower():
                 raise BotDetectedError(video_id)
 
     def _get_api_key(self, video_id: str) -> str:
         """Extract INNERTUBE_API_KEY from video watch page."""
-        response = self._http.get(
+        response = self._http.transcript_get(
             InnerTube.WATCH_URL,
             params={'v': video_id},
         )
@@ -221,7 +262,7 @@ class YouTubeTranscript:
 
     async def _aget_api_key(self, video_id: str) -> str:
         """Async version of _get_api_key."""
-        response = await self._http.aget(
+        response = await self._http.transcript_aget(
             InnerTube.WATCH_URL,
             params={'v': video_id},
         )
@@ -369,12 +410,12 @@ class YouTubeTranscript:
 
     def _fetch_transcript_segments(self, url: str) -> list[TranscriptSegment]:
         """Fetch and parse transcript XML from a caption track URL."""
-        response = self._http.get(url)
+        response = self._http.transcript_get(url)
         return ResponseParser.parse_transcript_xml(response.text)
 
     async def _afetch_transcript_segments(self, url: str) -> list[TranscriptSegment]:
         """Async version of _fetch_transcript_segments."""
-        response = await self._http.aget(url)
+        response = await self._http.transcript_aget(url)
         return ResponseParser.parse_transcript_xml(response.text)
 
     @staticmethod

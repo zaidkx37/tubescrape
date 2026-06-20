@@ -671,6 +671,33 @@ channel = yt.get_channel_videos('...') # → proxy3
 # Wraps back to proxy1 after the list is exhausted
 ```
 
+### Separate Transcript Proxy Pool
+
+YouTube's player and caption endpoints are much stricter about datacenter IPs than search/browse. You can supply dedicated residential proxies for transcripts while using cheaper datacenter proxies for everything else:
+
+```python
+# Datacenter proxies for search/browse (cheap, fast)
+# Residential proxies for transcripts (reliable, avoids captcha)
+yt = YouTube(
+    proxies=[
+        'http://dc-user:pass@datacenter1:8080',
+        'http://dc-user:pass@datacenter2:8080',
+    ],
+    transcript_proxies=[
+        'http://res-user:pass@residential1:8080',
+        'http://res-user:pass@residential2:8080',
+    ],
+)
+
+# Or a single transcript proxy
+yt = YouTube(
+    proxy='http://dc-proxy:8080',
+    transcript_proxy='http://residential-proxy:8080',
+)
+
+# If no transcript proxies are set, the main proxies are used for everything
+```
+
 ### Loading Proxies from a File
 
 Proxy files use `host:port:username:password` format, one per line:
@@ -816,6 +843,8 @@ from tubescrape import (
     ChannelNotFoundError,
     PlaylistNotFoundError,
     RateLimitError,
+    ProxyBlockedError,
+    CaptchaError,
     BotDetectedError,
     RequestError,
 )
@@ -846,13 +875,25 @@ except ChannelNotFoundError as e:
 try:
     results = yt.search('python')
 except RateLimitError:
-    print('Rate limited — try again later or use a proxy')
+    print('Rate limited (retried automatically, still failing)')
+
+# Catch proxy blocks (datacenter IP rejected by firewall)
+try:
+    results = yt.search('python')
+except ProxyBlockedError:
+    print('Proxy blocked by firewall, switch to residential proxies')
+
+# Catch captcha (YouTube bot verification challenge)
+try:
+    transcript = yt.get_transcript('dQw4w9WgXcQ')
+except CaptchaError:
+    print('Captcha triggered, use residential proxies for transcripts')
 
 # Catch bot detection
 try:
     results = yt.search('python')
 except BotDetectedError:
-    print('Bot detected — use a proxy')
+    print('Bot detected, use a proxy')
 
 # Catch any tubescrape error
 try:
@@ -1232,8 +1273,10 @@ All models are **frozen dataclasses** (immutable) with `to_dict()` for serializa
 ```
 YouTubeError                        Base exception for all errors
 ├── RequestError                    HTTP request failed after retries
-│   ├── RateLimitError              HTTP 429 — rate limited by YouTube
-│   └── BotDetectedError            HTTP 403 — automated access detected
+│   ├── RateLimitError              HTTP 429, auto-retried with backoff
+│   ├── ProxyBlockedError           Proxy firewall block, auto-retried with rotation
+│   ├── CaptchaError                Bot verification challenge, auto-retried with rotation
+│   └── BotDetectedError            HTTP 403, automated access detected
 ├── VideoUnavailableError           Video is deleted, private, or region-locked
 │   └── AgeRestrictedError          Video requires age verification
 ├── TranscriptsDisabledError        Transcripts are disabled for this video
@@ -1245,5 +1288,7 @@ YouTubeError                        Base exception for all errors
 ├── APIKeyNotFoundError             InnerTube API key not found on watch page
 └── ParsingError                    Failed to parse YouTube response
 ```
+
+**Auto-retry behavior:** `RateLimitError`, `ProxyBlockedError`, and server errors (500/502/503/504) are automatically retried with exponential backoff. `CaptchaError` is retried with proxy rotation during transcript fetching. Network errors (timeouts, SSL, connection resets) trigger an automatic client reset and retry. Only raised to the caller after all retry attempts are exhausted.
 
 All exceptions inherit from `YouTubeError`, so you can catch everything with a single `except YouTubeError`.
