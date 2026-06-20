@@ -18,9 +18,11 @@ from tubescrape.exceptions import (
     AgeRestrictedError,
     APIKeyNotFoundError,
     BotDetectedError,
+    CaptchaError,
     ChannelNotFoundError,
     ParsingError,
     PlaylistNotFoundError,
+    ProxyBlockedError,
     RateLimitError,
     RequestError,
     TranscriptFetchError,
@@ -47,7 +49,7 @@ from tubescrape.models import (
     VideoResult,
 )
 
-__version__ = '0.1.4'
+__version__ = '0.2.0'
 
 __all__ = [
     # Client
@@ -71,9 +73,11 @@ __all__ = [
     'AgeRestrictedError',
     'APIKeyNotFoundError',
     'BotDetectedError',
+    'CaptchaError',
     'ChannelNotFoundError',
     'ParsingError',
     'PlaylistNotFoundError',
+    'ProxyBlockedError',
     'RateLimitError',
     'RequestError',
     'TranscriptFetchError',

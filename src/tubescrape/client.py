@@ -53,6 +53,11 @@ class YouTube:
         timeout: Request timeout in seconds.
         max_retries: Maximum retry attempts on transient failures.
         cookies: Additional cookies to include in all requests.
+        transcript_proxy: Proxy URL for transcript requests (residential recommended).
+        transcript_proxies: List of proxy URLs for transcript rotation.
+            YouTube's player/caption endpoints are stricter about datacenter IPs.
+            Use residential proxies here while using cheaper datacenter proxies
+            for search/browse via the main proxy/proxies parameters.
     """
 
     def __init__(
@@ -62,6 +67,8 @@ class YouTube:
         timeout: float = 30.0,
         max_retries: int = 3,
         cookies: dict[str, str] | None = None,
+        transcript_proxy: str | None = None,
+        transcript_proxies: list[str] | None = None,
     ):
         self._http = HTTPClient(
             proxy=proxy,
@@ -69,6 +76,8 @@ class YouTube:
             timeout=timeout,
             max_retries=max_retries,
             cookies=cookies,
+            transcript_proxy=transcript_proxy,
+            transcript_proxies=transcript_proxies,
         )
         self._search = YouTubeSearch(self._http)
         self._browse = YouTubeBrowse(self._http)

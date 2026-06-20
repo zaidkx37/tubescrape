@@ -124,6 +124,36 @@ class ParsingError(YouTubeError):
         super().__init__(message)
 
 
+class ProxyBlockedError(RequestError):
+    """Proxy was blocked by a firewall or content filter (datacenter IP rejected)."""
+
+    # Signatures found in 403 response bodies from corporate firewalls
+    FIREWALL_SIGNATURES: tuple[str, ...] = (
+        'Web Filter Violation',
+        'FortiGate Application Control',
+        'Application Blocked',
+        'Web Page Blocked',
+        'Blocked',
+        'Banned',
+    )
+
+    def __init__(self, message: str = 'Proxy blocked by firewall'):
+        super().__init__(message, status_code=403)
+
+
+class CaptchaError(RequestError):
+    """YouTube triggered a captcha / bot verification challenge."""
+
+    def __init__(self, video_id: str | None = None):
+        super().__init__(
+            'Captcha triggered%s' % (
+                f' for {video_id}' if video_id else ''
+            ),
+            status_code=429,
+        )
+        self.video_id = video_id
+
+
 class BotDetectedError(RequestError):
     """YouTube detected automated access."""
 
