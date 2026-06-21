@@ -57,7 +57,8 @@ class YouTubeTranscript:
     def get_video_info(self, video_id: str) -> VideoInfo | None:
         """Fetch video metadata from InnerTube player API.
 
-        Uses the main proxy pool (datacenter proxies work fine).
+        Uses the transcript proxy pool (residential) since YouTube's
+        player endpoint triggers bot detection on datacenter IPs.
 
         Args:
             video_id: YouTube video ID (e.g. 'dQw4w9WgXcQ').
@@ -68,7 +69,7 @@ class YouTubeTranscript:
         """
         api_key = self._get_api_key(video_id)
         payload = InnerTube.build_player_payload(video_id)
-        response = self._http.post(
+        response = self._http.transcript_post(
             f'{InnerTube.PLAYER_URL}?key={api_key}',
             json=payload,
         )
@@ -78,7 +79,7 @@ class YouTubeTranscript:
         """Async version of get_video_info."""
         api_key = await self._aget_api_key(video_id)
         payload = InnerTube.build_player_payload(video_id)
-        response = await self._http.apost(
+        response = await self._http.transcript_apost(
             f'{InnerTube.PLAYER_URL}?key={api_key}',
             json=payload,
         )
