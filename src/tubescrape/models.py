@@ -215,6 +215,47 @@ class Transcript:
 
 
 @dataclass(frozen=True, slots=True)
+class VideoInfo:
+    """Video metadata from InnerTube player API."""
+
+    video_id: str
+    title: str
+    channel: str
+    channel_id: str
+    description: str
+    view_count: int
+    duration_seconds: int
+    thumbnails: list[Thumbnail] = field(default_factory=list)
+    keywords: list[str] = field(default_factory=list, repr=False)
+    is_live: bool = False
+    is_private: bool = False
+
+    @property
+    def url(self) -> str:
+        return f'https://www.youtube.com/watch?v={self.video_id}'
+
+    @property
+    def thumbnail(self) -> str | None:
+        return self.thumbnails[-1].url if self.thumbnails else None
+
+    def to_dict(self) -> dict:
+        return {
+            'video_id': self.video_id,
+            'title': self.title,
+            'channel': self.channel,
+            'channel_id': self.channel_id,
+            'description': self.description,
+            'view_count': self.view_count,
+            'duration_seconds': self.duration_seconds,
+            'thumbnail': self.thumbnail,
+            'thumbnails': [t.to_dict() for t in self.thumbnails],
+            'keywords': self.keywords,
+            'is_live': self.is_live,
+            'is_private': self.is_private,
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class TranslationLanguage:
     """A language available for transcript translation."""
 

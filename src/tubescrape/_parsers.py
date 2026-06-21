@@ -15,6 +15,7 @@ from tubescrape.models import (
     TranscriptListEntry,
     TranscriptSegment,
     TranslationLanguage,
+    VideoInfo,
     VideoResult,
 )
 
@@ -342,6 +343,36 @@ class ResponseParser:
         caption_tracks = renderer.get('captionTracks', [])
         translation_languages = renderer.get('translationLanguages', [])
         return caption_tracks, translation_languages
+
+    @staticmethod
+    def parse_video_details(data: dict) -> VideoInfo | None:
+        """Extract VideoInfo from InnerTube player response videoDetails."""
+        vd = data.get('videoDetails')
+        if not vd:
+            return None
+
+        thumbnails = [
+            Thumbnail(
+                url=t.get('url', ''),
+                width=t.get('width', 0),
+                height=t.get('height', 0),
+            )
+            for t in vd.get('thumbnail', {}).get('thumbnails', [])
+        ]
+
+        return VideoInfo(
+            video_id=vd.get('videoId', ''),
+            title=vd.get('title', ''),
+            channel=vd.get('author', ''),
+            channel_id=vd.get('channelId', ''),
+            description=vd.get('shortDescription', ''),
+            view_count=int(vd['viewCount']) if vd.get('viewCount') else 0,
+            duration_seconds=int(vd['lengthSeconds']) if vd.get('lengthSeconds') else 0,
+            thumbnails=thumbnails,
+            keywords=vd.get('keywords', []),
+            is_live=vd.get('isLiveContent', False),
+            is_private=vd.get('isPrivate', False),
+        )
 
     @staticmethod
     def parse_translation_languages(raw: list[dict]) -> tuple[TranslationLanguage, ...]:

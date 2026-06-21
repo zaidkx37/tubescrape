@@ -14,6 +14,7 @@ from tubescrape.models import (
     ShortsResult,
     Transcript,
     TranscriptListEntry,
+    VideoInfo,
 )
 from tubescrape.playlist import YouTubePlaylist
 from tubescrape.search import YouTubeSearch
@@ -384,6 +385,26 @@ class YouTube:
         """Async version of list_transcripts."""
         video_id = URLParser.extract_video_id(video)
         return await self._transcript.alist_transcripts(video_id)
+
+    def get_video_info(self, video: str) -> VideoInfo | None:
+        """Fetch video metadata from InnerTube player API.
+
+        Uses the main proxy pool (datacenter proxies work fine).
+        Accepts a video ID or full URL.
+
+        Args:
+            video: YouTube video ID or URL.
+
+        Returns:
+            VideoInfo with title, channel, description, views, duration, etc.
+        """
+        video_id = URLParser.extract_video_id(video)
+        return self._transcript.get_video_info(video_id)
+
+    async def aget_video_info(self, video: str) -> VideoInfo | None:
+        """Async version of get_video_info."""
+        video_id = URLParser.extract_video_id(video)
+        return await self._transcript.aget_video_info(video_id)
 
     # ── Formatting ──
 

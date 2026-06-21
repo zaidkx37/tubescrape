@@ -16,7 +16,7 @@ from tubescrape.exceptions import (
     TranscriptsNotAvailableError,
     TranslationNotAvailableError,
 )
-from tubescrape.models import Transcript, TranscriptListEntry, TranscriptSegment
+from tubescrape.models import Transcript, TranscriptListEntry, TranscriptSegment, VideoInfo
 
 logger = logging.getLogger('tubescrape.transcript')
 
@@ -53,6 +53,36 @@ class YouTubeTranscript:
         """Async version of list_transcripts."""
         caption_tracks, translation_languages = await self._aget_caption_tracks(video_id)
         return ResponseParser.parse_caption_tracks(caption_tracks, translation_languages)
+
+    def get_video_info(self, video_id: str) -> VideoInfo | None:
+        """Fetch video metadata from InnerTube player API.
+
+        Uses the main proxy pool (datacenter proxies work fine).
+
+        Args:
+            video_id: YouTube video ID (e.g. 'dQw4w9WgXcQ').
+
+        Returns:
+            VideoInfo with title, channel, description, views, duration, etc.
+            None if videoDetails is not available.
+        """
+        api_key = self._get_api_key(video_id)
+        payload = InnerTube.build_player_payload(video_id)
+        response = self._http.post(
+            f'{InnerTube.PLAYER_URL}?key={api_key}',
+            json=payload,
+        )
+        return ResponseParser.parse_video_details(response.json())
+
+    async def aget_video_info(self, video_id: str) -> VideoInfo | None:
+        """Async version of get_video_info."""
+        api_key = await self._aget_api_key(video_id)
+        payload = InnerTube.build_player_payload(video_id)
+        response = await self._http.apost(
+            f'{InnerTube.PLAYER_URL}?key={api_key}',
+            json=payload,
+        )
+        return ResponseParser.parse_video_details(response.json())
 
     def get_transcript(
         self,
