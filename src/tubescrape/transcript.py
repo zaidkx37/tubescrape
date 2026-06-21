@@ -35,6 +35,7 @@ class YouTubeTranscript:
 
     def __init__(self, http_client: HTTPClient):
         self._http = http_client
+        self._player_cache: dict = {}
 
     def list_transcripts(self, video_id: str) -> list[TranscriptListEntry]:
         """List available transcripts for a video.
@@ -46,18 +47,25 @@ class YouTubeTranscript:
             List of TranscriptListEntry with language and availability info.
             Each entry includes translation_languages if the track is translatable.
         """
-        caption_tracks, translation_languages = self._get_caption_tracks(video_id)
+        player_data = self._get_player_data(video_id)
+        caption_tracks, translation_languages = ResponseParser.parse_player_captions(player_data)
+        if not caption_tracks:
+            raise TranscriptsDisabledError(video_id)
         return ResponseParser.parse_caption_tracks(caption_tracks, translation_languages)
 
     async def alist_transcripts(self, video_id: str) -> list[TranscriptListEntry]:
         """Async version of list_transcripts."""
-        caption_tracks, translation_languages = await self._aget_caption_tracks(video_id)
+        player_data = await self._aget_player_data(video_id)
+        caption_tracks, translation_languages = ResponseParser.parse_player_captions(player_data)
+        if not caption_tracks:
+            raise TranscriptsDisabledError(video_id)
         return ResponseParser.parse_caption_tracks(caption_tracks, translation_languages)
 
     def get_video_info(self, video_id: str) -> VideoInfo | None:
         """Fetch video metadata from InnerTube player API.
 
-        Uses the main proxy pool (datacenter proxies work fine).
+        Reuses cached player data if available (e.g. after list_transcripts
+        or get_transcript), otherwise makes a single player API call.
 
         Args:
             video_id: YouTube video ID (e.g. 'dQw4w9WgXcQ').
@@ -66,23 +74,13 @@ class YouTubeTranscript:
             VideoInfo with title, channel, description, views, duration, etc.
             None if videoDetails is not available.
         """
-        api_key = self._get_api_key(video_id)
-        payload = InnerTube.build_player_payload(video_id)
-        response = self._http.post(
-            f'{InnerTube.PLAYER_URL}?key={api_key}',
-            json=payload,
-        )
-        return ResponseParser.parse_video_details(response.json())
+        player_data = self._get_player_data(video_id)
+        return ResponseParser.parse_video_details(player_data)
 
     async def aget_video_info(self, video_id: str) -> VideoInfo | None:
         """Async version of get_video_info."""
-        api_key = await self._aget_api_key(video_id)
-        payload = InnerTube.build_player_payload(video_id)
-        response = await self._http.apost(
-            f'{InnerTube.PLAYER_URL}?key={api_key}',
-            json=payload,
-        )
-        return ResponseParser.parse_video_details(response.json())
+        player_data = await self._aget_player_data(video_id)
+        return ResponseParser.parse_video_details(player_data)
 
     def get_transcript(
         self,
@@ -113,7 +111,11 @@ class YouTubeTranscript:
         if languages is None:
             languages = ['en']
 
-        caption_tracks, translation_languages = self._get_caption_tracks(video_id)
+        player_data = self._get_player_data(video_id)
+        caption_tracks, translation_languages = ResponseParser.parse_player_captions(player_data)
+        if not caption_tracks:
+            raise TranscriptsDisabledError(video_id)
+
         track_url, track_info = self._pick_track(
             caption_tracks, languages, translation_languages,
         )
@@ -121,7 +123,6 @@ class YouTubeTranscript:
         if not track_url:
             raise TranscriptsNotAvailableError(video_id)
 
-        # Apply translation if requested
         if translate_to:
             track_url, track_info = self._apply_translation(
                 track_url, track_info, translate_to,
@@ -156,7 +157,11 @@ class YouTubeTranscript:
         if languages is None:
             languages = ['en']
 
-        caption_tracks, translation_languages = await self._aget_caption_tracks(video_id)
+        player_data = await self._aget_player_data(video_id)
+        caption_tracks, translation_languages = ResponseParser.parse_player_captions(player_data)
+        if not caption_tracks:
+            raise TranscriptsDisabledError(video_id)
+
         track_url, track_info = self._pick_track(
             caption_tracks, languages, translation_languages,
         )
@@ -189,11 +194,19 @@ class YouTubeTranscript:
 
     CAPTCHA_MAX_RETRIES: int = 3
 
-    def _get_caption_tracks(self, video_id: str) -> tuple[list[dict], list[dict]]:
-        """Call InnerTube player API to get available caption tracks.
+    def _get_player_data(self, video_id: str) -> dict:
+        """Fetch and cache InnerTube player response for a video.
+
+        All public methods (list_transcripts, get_transcript, get_video_info)
+        call this. The response is cached per video_id so multiple calls
+        for the same video only make one API key fetch + one player request.
 
         Retries with proxy rotation on captcha challenges.
         """
+        # Return cached data if available
+        if hasattr(self, '_player_cache') and self._player_cache.get('video_id') == video_id:
+            return self._player_cache['data']
+
         last_error: Exception | None = None
 
         for attempt in range(self.CAPTCHA_MAX_RETRIES):
@@ -219,16 +232,17 @@ class YouTubeTranscript:
                     continue
                 raise
 
-            caption_tracks, translation_languages = ResponseParser.parse_player_captions(data)
-            if not caption_tracks:
-                raise TranscriptsDisabledError(video_id)
-
-            return caption_tracks, translation_languages
+            # Cache the successful response
+            self._player_cache = {'video_id': video_id, 'data': data}
+            return data
 
         raise last_error or CaptchaError(video_id)
 
-    async def _aget_caption_tracks(self, video_id: str) -> tuple[list[dict], list[dict]]:
-        """Async version of _get_caption_tracks with captcha retry."""
+    async def _aget_player_data(self, video_id: str) -> dict:
+        """Async version of _get_player_data with caching."""
+        if hasattr(self, '_player_cache') and self._player_cache.get('video_id') == video_id:
+            return self._player_cache['data']
+
         last_error: Exception | None = None
 
         for attempt in range(self.CAPTCHA_MAX_RETRIES):
@@ -254,11 +268,8 @@ class YouTubeTranscript:
                     continue
                 raise
 
-            caption_tracks, translation_languages = ResponseParser.parse_player_captions(data)
-            if not caption_tracks:
-                raise TranscriptsDisabledError(video_id)
-
-            return caption_tracks, translation_languages
+            self._player_cache = {'video_id': video_id, 'data': data}
+            return data
 
         raise last_error or CaptchaError(video_id)
 
