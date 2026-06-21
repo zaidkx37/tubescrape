@@ -46,10 +46,11 @@ from tubescrape.models import (
     TranscriptListEntry,
     TranscriptSegment,
     TranslationLanguage,
+    VideoInfo,
     VideoResult,
 )
 
-__version__ = '0.2.0'
+__version__ = '0.2.1'
 
 __all__ = [
     # Client
@@ -68,6 +69,7 @@ __all__ = [
     'TranslationLanguage',
     'TranscriptListEntry',
     'TranscriptSegment',
+    'VideoInfo',
     'VideoResult',
     # Exceptions
     'AgeRestrictedError',
