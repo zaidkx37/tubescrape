@@ -7,7 +7,8 @@ from tubescrape.cli.output import print_search_results
 
 @click.command()
 @click.argument('query')
-@click.option('--max-results', '-n', default=20, type=int, help='Maximum results to return (1-50).')
+@click.option('--max-results', '-n', default=20, type=int,
+              help='Maximum results (0 for all).')
 @click.option('--type', '-t', 'content_type', default=None,
               type=click.Choice(['video', 'channel', 'playlist', 'movie'], case_sensitive=False),
               help='Content type filter.')

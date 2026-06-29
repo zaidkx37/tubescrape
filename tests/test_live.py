@@ -439,7 +439,6 @@ class TestPlaylist:
             assert len(video.video_id) == 11
             assert video.title
             assert video.url.startswith('https://www.youtube.com/watch?v=')
-            assert isinstance(video.position, int)
             assert isinstance(video.duration_seconds, int)
 
     def test_playlist_videos_have_thumbnails(self, yt: YouTube):
@@ -465,7 +464,6 @@ class TestPlaylist:
         if d['videos']:
             v = d['videos'][0]
             assert 'video_id' in v
-            assert 'position' in v
 
     def test_playlist_json_serializable(self, yt: YouTube):
         result = yt.get_playlist(LEX_PLAYLIST_ID, max_results=3)

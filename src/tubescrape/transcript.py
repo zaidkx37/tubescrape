@@ -8,7 +8,6 @@ from tubescrape._innertube import InnerTube
 from tubescrape._parsers import ResponseParser
 from tubescrape.exceptions import (
     AgeRestrictedError,
-    APIKeyNotFoundError,
     BotDetectedError,
     CaptchaError,
     TranscriptFetchError,
@@ -19,6 +18,9 @@ from tubescrape.exceptions import (
 from tubescrape.models import Transcript, TranscriptListEntry, TranscriptSegment, VideoInfo
 
 logger = logging.getLogger('tubescrape.transcript')
+
+# Global API key cache shared across all YouTubeTranscript instances.
+_api_key_cache: str | None = None
 
 
 class YouTubeTranscript:
@@ -64,23 +66,37 @@ class YouTubeTranscript:
     def get_video_info(self, video_id: str) -> VideoInfo | None:
         """Fetch video metadata from InnerTube player API.
 
-        Reuses cached player data if available (e.g. after list_transcripts
-        or get_transcript), otherwise makes a single player API call.
+        Uses the WEB client which returns richer metadata including exact
+        publish/upload dates, category, and other microformat fields.
+        Does not require residential proxies (uses main proxy pool).
 
         Args:
             video_id: YouTube video ID (e.g. 'dQw4w9WgXcQ').
 
         Returns:
-            VideoInfo with title, channel, description, views, duration, etc.
+            VideoInfo with title, channel, description, views, duration,
+            publish_date, upload_date, category, etc.
             None if videoDetails is not available.
         """
-        player_data = self._get_player_data(video_id)
-        return ResponseParser.parse_video_details(player_data)
+        payload = InnerTube.build_player_web_payload(video_id)
+        response = self._http.post(
+            InnerTube.PLAYER_URL,
+            json=payload,
+            params={'prettyPrint': 'false'},
+        )
+        data = response.json()
+        return ResponseParser.parse_video_details(data)
 
     async def aget_video_info(self, video_id: str) -> VideoInfo | None:
         """Async version of get_video_info."""
-        player_data = await self._aget_player_data(video_id)
-        return ResponseParser.parse_video_details(player_data)
+        payload = InnerTube.build_player_web_payload(video_id)
+        response = await self._http.apost(
+            InnerTube.PLAYER_URL,
+            json=payload,
+            params={'prettyPrint': 'false'},
+        )
+        data = response.json()
+        return ResponseParser.parse_video_details(data)
 
     def get_transcript(
         self,
@@ -197,25 +213,22 @@ class YouTubeTranscript:
     def _get_player_data(self, video_id: str) -> dict:
         """Fetch and cache InnerTube player response for a video.
 
-        All public methods (list_transcripts, get_transcript, get_video_info)
-        call this. The response is cached per video_id so multiple calls
-        for the same video only make one API key fetch + one player request.
+        Uses the ANDROID client (returns caption tracks needed for transcripts).
+        Tries without API key first. If that fails with empty captions,
+        fetches the key from the watch page (cached globally) and retries.
 
         Retries with proxy rotation on captcha challenges.
         """
-        # Return cached data if available
         if hasattr(self, '_player_cache') and self._player_cache.get('video_id') == video_id:
             return self._player_cache['data']
 
         last_error: Exception | None = None
 
         for attempt in range(self.CAPTCHA_MAX_RETRIES):
-            api_key = self._get_api_key(video_id)
-
+            url = self._build_player_url()
             payload = InnerTube.build_player_payload(video_id)
             response = self._http.transcript_post(
-                f'{InnerTube.PLAYER_URL}?key={api_key}',
-                json=payload,
+                url, json=payload, params={'prettyPrint': 'false'},
             )
             data = response.json()
 
@@ -232,7 +245,14 @@ class YouTubeTranscript:
                     continue
                 raise
 
-            # Cache the successful response
+            # If captions are missing, the key-less request may have been
+            # rejected silently. Fetch an API key and retry once.
+            captions = data.get('captions')
+            if captions is None or 'playerCaptionsTracklistRenderer' not in captions:
+                refreshed = self._retry_with_api_key(video_id, data)
+                if refreshed is not None:
+                    data = refreshed
+
             self._player_cache = {'video_id': video_id, 'data': data}
             return data
 
@@ -246,12 +266,10 @@ class YouTubeTranscript:
         last_error: Exception | None = None
 
         for attempt in range(self.CAPTCHA_MAX_RETRIES):
-            api_key = await self._aget_api_key(video_id)
-
+            url = self._build_player_url()
             payload = InnerTube.build_player_payload(video_id)
             response = await self._http.transcript_apost(
-                f'{InnerTube.PLAYER_URL}?key={api_key}',
-                json=payload,
+                url, json=payload, params={'prettyPrint': 'false'},
             )
             data = response.json()
 
@@ -268,10 +286,143 @@ class YouTubeTranscript:
                     continue
                 raise
 
+            captions = data.get('captions')
+            if captions is None or 'playerCaptionsTracklistRenderer' not in captions:
+                refreshed = await self._aretry_with_api_key(video_id, data)
+                if refreshed is not None:
+                    data = refreshed
+
             self._player_cache = {'video_id': video_id, 'data': data}
             return data
 
         raise last_error or CaptchaError(video_id)
+
+    def _retry_with_api_key(self, video_id: str, original_data: dict) -> dict | None:
+        """Retry the player request with an API key if captions were missing."""
+        api_key = self._ensure_api_key(video_id)
+        if not api_key:
+            return None
+
+        logger.info('Retrying player request with API key for %s', video_id)
+        payload = InnerTube.build_player_payload(video_id)
+        url = f'{InnerTube.PLAYER_URL}?key={api_key}'
+        response = self._http.transcript_post(
+            url, json=payload, params={'prettyPrint': 'false'},
+        )
+        data = response.json()
+        captions = data.get('captions')
+        if captions and 'playerCaptionsTracklistRenderer' in captions:
+            return data
+
+        # Key may be stale, refresh it once
+        logger.info('Cached API key may be stale, refreshing')
+        api_key = self._fetch_api_key(video_id)
+        if not api_key:
+            return None
+
+        url = f'{InnerTube.PLAYER_URL}?key={api_key}'
+        response = self._http.transcript_post(
+            url, json=payload, params={'prettyPrint': 'false'},
+        )
+        data = response.json()
+        captions = data.get('captions')
+        if captions and 'playerCaptionsTracklistRenderer' in captions:
+            return data
+
+        return None
+
+    async def _aretry_with_api_key(self, video_id: str, original_data: dict) -> dict | None:
+        """Async version of _retry_with_api_key."""
+        api_key = await self._aensure_api_key(video_id)
+        if not api_key:
+            return None
+
+        logger.info('Retrying player request with API key for %s', video_id)
+        payload = InnerTube.build_player_payload(video_id)
+        url = f'{InnerTube.PLAYER_URL}?key={api_key}'
+        response = await self._http.transcript_apost(
+            url, json=payload, params={'prettyPrint': 'false'},
+        )
+        data = response.json()
+        captions = data.get('captions')
+        if captions and 'playerCaptionsTracklistRenderer' in captions:
+            return data
+
+        logger.info('Cached API key may be stale, refreshing')
+        api_key = await self._afetch_api_key(video_id)
+        if not api_key:
+            return None
+
+        url = f'{InnerTube.PLAYER_URL}?key={api_key}'
+        response = await self._http.transcript_apost(
+            url, json=payload, params={'prettyPrint': 'false'},
+        )
+        data = response.json()
+        captions = data.get('captions')
+        if captions and 'playerCaptionsTracklistRenderer' in captions:
+            return data
+
+        return None
+
+    @staticmethod
+    def _build_player_url() -> str:
+        """Build player URL, using cached API key if available."""
+        global _api_key_cache
+        if _api_key_cache:
+            return f'{InnerTube.PLAYER_URL}?key={_api_key_cache}'
+        return InnerTube.PLAYER_URL
+
+    def _ensure_api_key(self, video_id: str) -> str | None:
+        """Return cached API key, or fetch one from the watch page."""
+        global _api_key_cache
+        if _api_key_cache:
+            return _api_key_cache
+        return self._fetch_api_key(video_id)
+
+    async def _aensure_api_key(self, video_id: str) -> str | None:
+        """Async version of _ensure_api_key."""
+        global _api_key_cache
+        if _api_key_cache:
+            return _api_key_cache
+        return await self._afetch_api_key(video_id)
+
+    def _fetch_api_key(self, video_id: str) -> str | None:
+        """Fetch INNERTUBE_API_KEY from watch page and cache it globally."""
+        global _api_key_cache
+        try:
+            response = self._http.transcript_get(
+                InnerTube.WATCH_URL, params={'v': video_id},
+            )
+            key = self._extract_api_key(response.text)
+            if key:
+                _api_key_cache = key
+                logger.info('Cached INNERTUBE_API_KEY: %s...', key[:10])
+            return key
+        except Exception as exc:
+            logger.warning('Failed to fetch API key: %s', exc)
+            return None
+
+    async def _afetch_api_key(self, video_id: str) -> str | None:
+        """Async version of _fetch_api_key."""
+        global _api_key_cache
+        try:
+            response = await self._http.transcript_aget(
+                InnerTube.WATCH_URL, params={'v': video_id},
+            )
+            key = self._extract_api_key(response.text)
+            if key:
+                _api_key_cache = key
+                logger.info('Cached INNERTUBE_API_KEY: %s...', key[:10])
+            return key
+        except Exception as exc:
+            logger.warning('Failed to fetch API key: %s', exc)
+            return None
+
+    @staticmethod
+    def _extract_api_key(html: str) -> str | None:
+        """Extract INNERTUBE_API_KEY from HTML page content."""
+        match = re.search(r'"INNERTUBE_API_KEY":\s*"([a-zA-Z0-9_-]+)"', html)
+        return match.group(1) if match else None
 
     @staticmethod
     def _check_playability(data: dict, video_id: str) -> None:
@@ -293,30 +444,6 @@ class YouTubeTranscript:
             if 'bot' in reason.lower():
                 raise BotDetectedError(video_id)
 
-    def _get_api_key(self, video_id: str) -> str:
-        """Extract INNERTUBE_API_KEY from video watch page."""
-        response = self._http.transcript_get(
-            InnerTube.WATCH_URL,
-            params={'v': video_id},
-        )
-        return self._extract_api_key(response.text, video_id)
-
-    async def _aget_api_key(self, video_id: str) -> str:
-        """Async version of _get_api_key."""
-        response = await self._http.transcript_aget(
-            InnerTube.WATCH_URL,
-            params={'v': video_id},
-        )
-        return self._extract_api_key(response.text, video_id)
-
-    @staticmethod
-    def _extract_api_key(html: str, video_id: str) -> str:
-        """Extract INNERTUBE_API_KEY from HTML page content."""
-        match = re.search(r'"INNERTUBE_API_KEY":\s*"([a-zA-Z0-9_-]+)"', html)
-        if match:
-            return match.group(1)
-        raise APIKeyNotFoundError(video_id)
-
     @staticmethod
     def _pick_track(
         tracks: list[dict],
@@ -329,7 +456,7 @@ class YouTubeTranscript:
             1. Manual track in requested language
             2. Auto-generated (ASR) track in requested language
             3. Any English variant (manual then auto)
-            4. Translatable track → translate via &tlang=
+            4. Translatable track -> translate via &tlang=
             5. First available track as fallback
 
         Returns:

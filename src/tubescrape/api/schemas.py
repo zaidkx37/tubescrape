@@ -30,13 +30,25 @@ class VideoResponse(BaseModel):
     badges: list[str] = []
 
 
+class ChannelSearchResponse(BaseModel):
+    channel_id: str
+    title: str
+    url: str
+    description: str | None = None
+    subscriber_count: str | None = None
+    video_count: str | None = None
+    thumbnails: list[ThumbnailResponse] = []
+
+
 class SearchResponse(BaseModel):
     query: str
     videos: list[VideoResponse]
+    channels: list[ChannelSearchResponse] = []
 
 
 class BrowseResponse(BaseModel):
     channel_id: str
+    channel: str | None = None
     videos: list[VideoResponse]
 
 
@@ -69,7 +81,6 @@ class PlaylistVideoResponse(BaseModel):
     channel: str
     duration: str | None
     duration_seconds: int
-    position: int
     url: str
     thumbnails: list[ThumbnailResponse] = []
 

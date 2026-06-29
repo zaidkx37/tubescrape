@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import logging
 import re
 
@@ -135,6 +136,7 @@ class YouTubeBrowse:
         )
         data = response.json()
 
+        channel_name = ResponseParser.extract_channel_name(data)
         videos, continuation = ResponseParser.parse_browse_first_page(data, channel_id)
         all_videos.extend(videos)
         page = 1
@@ -179,7 +181,22 @@ class YouTubeBrowse:
         logger.info(
             'Browse complete: %d pages, %d total videos', page, len(all_videos),
         )
-        return BrowseResult(channel_id=channel_id, videos=all_videos)
+
+        # Fill in channel name/id on videos where missing (lockupViewModel
+        # format does not include per-video channel info).
+        if channel_name or channel_id:
+            all_videos = [
+                dataclasses.replace(
+                    v,
+                    channel=v.channel or channel_name or '',
+                    channel_id=v.channel_id or channel_id,
+                ) if not v.channel or not v.channel_id else v
+                for v in all_videos
+            ]
+
+        return BrowseResult(
+            channel_id=channel_id, channel=channel_name, videos=all_videos,
+        )
 
     # ── Shorts ──
 
@@ -297,6 +314,7 @@ class YouTubeBrowse:
         )
         data = response.json()
 
+        channel_name = ResponseParser.extract_channel_name(data)
         videos, continuation = ResponseParser.parse_browse_first_page(data, channel_id)
         all_videos.extend(videos)
         page = 1
@@ -329,4 +347,16 @@ class YouTubeBrowse:
         if max_results > 0:
             all_videos = all_videos[:max_results]
 
-        return BrowseResult(channel_id=channel_id, videos=all_videos)
+        if channel_name or channel_id:
+            all_videos = [
+                dataclasses.replace(
+                    v,
+                    channel=v.channel or channel_name or '',
+                    channel_id=v.channel_id or channel_id,
+                ) if not v.channel or not v.channel_id else v
+                for v in all_videos
+            ]
+
+        return BrowseResult(
+            channel_id=channel_id, channel=channel_name, videos=all_videos,
+        )

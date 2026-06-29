@@ -121,14 +121,15 @@ class Transcript:
         return ' '.join(s.text for s in self.segments)
 
     def to_dict(self, timestamps: bool = True) -> dict:
-        result = {
+        result: dict = {
             'video_id': self.video_id,
             'language': self.language,
             'language_code': self.language_code,
             'is_generated': self.is_generated,
-            'translation_language': self.translation_language,
             'text': self.text,
         }
+        if self.translation_language is not None:
+            result['translation_language'] = self.translation_language
         if timestamps:
             result['segments'] = [s.to_dict() for s in self.segments]
         return result
@@ -229,6 +230,12 @@ class VideoInfo:
     keywords: list[str] = field(default_factory=list, repr=False)
     is_live: bool = False
     is_private: bool = False
+    publish_date: str | None = None
+    upload_date: str | None = None
+    category: str | None = None
+    is_family_safe: bool | None = None
+    is_unlisted: bool | None = None
+    owner_url: str | None = None
 
     @property
     def url(self) -> str:
@@ -239,7 +246,7 @@ class VideoInfo:
         return self.thumbnails[-1].url if self.thumbnails else None
 
     def to_dict(self) -> dict:
-        return {
+        result: dict = {
             'video_id': self.video_id,
             'title': self.title,
             'channel': self.channel,
@@ -253,6 +260,19 @@ class VideoInfo:
             'is_live': self.is_live,
             'is_private': self.is_private,
         }
+        if self.publish_date is not None:
+            result['publish_date'] = self.publish_date
+        if self.upload_date is not None:
+            result['upload_date'] = self.upload_date
+        if self.category is not None:
+            result['category'] = self.category
+        if self.is_family_safe is not None:
+            result['is_family_safe'] = self.is_family_safe
+        if self.is_unlisted is not None:
+            result['is_unlisted'] = self.is_unlisted
+        if self.owner_url is not None:
+            result['owner_url'] = self.owner_url
+        return result
 
 
 @dataclass(frozen=True, slots=True)
@@ -291,17 +311,60 @@ class TranscriptListEntry:
 
 
 @dataclass(frozen=True, slots=True)
+class ChannelResult:
+    """A single YouTube channel from search results."""
+
+    channel_id: str
+    title: str
+    description: str | None = None
+    subscriber_count: str | None = None
+    video_count: str | None = None
+    thumbnails: list[Thumbnail] = field(default_factory=list)
+
+    @property
+    def url(self) -> str:
+        return f'https://www.youtube.com/channel/{self.channel_id}'
+
+    @property
+    def thumbnail_url(self) -> str | None:
+        if self.thumbnails:
+            return self.thumbnails[-1].url
+        return None
+
+    def to_dict(self) -> dict:
+        result: dict = {
+            'channel_id': self.channel_id,
+            'title': self.title,
+            'url': self.url,
+        }
+        if self.description is not None:
+            result['description'] = self.description
+        if self.subscriber_count is not None:
+            result['subscriber_count'] = self.subscriber_count
+        if self.video_count is not None:
+            result['video_count'] = self.video_count
+        if self.thumbnails:
+            result['thumbnails'] = [t.to_dict() for t in self.thumbnails]
+        return result
+
+
+@dataclass(frozen=True, slots=True)
 class SearchResult:
     """Results from a YouTube search query."""
 
     query: str
     videos: list[VideoResult] = field(default_factory=list)
+    channels: list[ChannelResult] = field(default_factory=list)
 
     def to_dict(self) -> dict:
-        return {
+        result: dict = {
             'query': self.query,
-            'videos': [v.to_dict() for v in self.videos],
         }
+        if self.videos:
+            result['videos'] = [v.to_dict() for v in self.videos]
+        if self.channels:
+            result['channels'] = [c.to_dict() for c in self.channels]
+        return result
 
 
 @dataclass(frozen=True, slots=True)
@@ -309,14 +372,18 @@ class BrowseResult:
     """Results from browsing a YouTube channel's videos."""
 
     channel_id: str
+    channel: str | None = None
     videos: list[VideoResult] = field(default_factory=list)
     continuation_token: str | None = None
 
     def to_dict(self) -> dict:
-        return {
+        result: dict = {
             'channel_id': self.channel_id,
             'videos': [v.to_dict() for v in self.videos],
         }
+        if self.channel is not None:
+            result['channel'] = self.channel
+        return result
 
 
 @dataclass(frozen=True, slots=True)
@@ -408,7 +475,6 @@ class PlaylistEntry:
     channel: str
     duration: str | None
     duration_seconds: int
-    position: int
     url: str
     thumbnails: list[Thumbnail] = field(default_factory=list)
 
@@ -426,7 +492,6 @@ class PlaylistEntry:
             'channel': self.channel,
             'duration': self.duration,
             'duration_seconds': self.duration_seconds,
-            'position': self.position,
             'url': self.url,
         }
         if self.thumbnails:

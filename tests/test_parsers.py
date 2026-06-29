@@ -349,11 +349,11 @@ class TestParseSearchResponse:
                 }
             }
         }
-        result = ResponseParser.parse_search_response(data, 'test query', 20)
+        result, continuation = ResponseParser.parse_search_response(data, 'test query', 20)
         assert result.query == 'test query'
         assert len(result.videos) == 1
         assert result.videos[0].video_id == 'abc123'
 
     def test_empty_response(self):
-        result = ResponseParser.parse_search_response({}, 'test', 20)
+        result, continuation = ResponseParser.parse_search_response({}, 'test', 20)
         assert result.videos == []

@@ -17,13 +17,14 @@ router = APIRouter()
 @router.get('/channel/{channel_id}/videos', response_model=BrowseResponse)
 async def channel_videos(
     channel_id: str,
-    max_results: int = Query(30, ge=1, le=200, description='Maximum videos'),
+    max_results: int = Query(30, ge=0, description='Maximum videos (0 for all)'),
     yt: YouTube = Depends(get_youtube),
 ) -> BrowseResponse:
     """Browse a YouTube channel's videos."""
     result = await yt.aget_channel_videos(channel_id, max_results=max_results)
     return BrowseResponse(
         channel_id=result.channel_id,
+        channel=result.channel,
         videos=[v.to_dict() for v in result.videos],
     )
 

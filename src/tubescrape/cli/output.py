@@ -137,9 +137,9 @@ def print_playlist_results(result: PlaylistResult, output_json: bool = False) ->
         table.add_column('Channel', style='cyan', max_width=25)
         table.add_column('Duration', justify='right')
 
-        for video in result.videos:
+        for i, video in enumerate(result.videos, start=1):
             table.add_row(
-                str(video.position),
+                str(i),
                 video.title,
                 video.channel,
                 video.duration or '-',
@@ -160,8 +160,8 @@ def _print_playlist_plain(result: PlaylistResult) -> None:
     print(f'Playlist: {title}\n')
     if result.channel:
         print(f'By: {result.channel}\n')
-    for video in result.videos:
-        print('%d. %s' % (video.position, video.title))
+    for i, video in enumerate(result.videos, start=1):
+        print('%d. %s' % (i, video.title))
         print('   Channel: {} | Duration: {}'.format(
             video.channel, video.duration or '-',
         ))

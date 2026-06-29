@@ -12,7 +12,7 @@ router = APIRouter()
 @router.get('/search', response_model=SearchResponse)
 async def search_videos(
     q: str = Query(..., description='Search query'),
-    max_results: int = Query(20, ge=1, le=50, description='Maximum results'),
+    max_results: int = Query(20, ge=0, description='Maximum results (0 for all)'),
     sort_by: str | None = Query(
         None, description='Sort: relevance, upload_date, view_count, rating',
     ),
@@ -42,4 +42,5 @@ async def search_videos(
     return SearchResponse(
         query=result.query,
         videos=[v.to_dict() for v in result.videos],
+        channels=[c.to_dict() for c in result.channels],
     )

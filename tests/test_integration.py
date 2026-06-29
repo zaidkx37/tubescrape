@@ -33,7 +33,7 @@ def _load(name: str) -> dict | list:
 class TestSearchIntegration:
     def test_parse_real_search(self):
         data = _load('raw_search.json')
-        result = ResponseParser.parse_search_response(data, 'python tutorial', 20)
+        result, _ = ResponseParser.parse_search_response(data, 'python tutorial', 20)
         assert result.query == 'python tutorial'
         assert len(result.videos) >= 1
 
@@ -45,7 +45,7 @@ class TestSearchIntegration:
 
     def test_search_videos_have_rich_data(self):
         data = _load('raw_search.json')
-        result = ResponseParser.parse_search_response(data, 'test', 20)
+        result, _ = ResponseParser.parse_search_response(data, 'test', 20)
         # At least some results should have thumbnails
         with_thumbs = [v for v in result.videos if v.thumbnails]
         assert len(with_thumbs) >= 1
@@ -110,14 +110,6 @@ class TestPlaylistIntegration:
         )
         # Real playlist should have title
         assert result.title or True  # Some playlists may not return title
-
-    def test_playlist_videos_have_positions(self):
-        data = _load('raw_playlist.json')
-        result, _ = ResponseParser.parse_playlist_response(
-            data, 'PLrAXtmErZgOeiKm4sgNOknGvNjby9efdf',
-        )
-        for video in result.videos:
-            assert isinstance(video.position, int)
 
     def test_playlist_videos_have_thumbnails(self):
         data = _load('raw_playlist.json')

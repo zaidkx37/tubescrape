@@ -102,21 +102,22 @@ class YouTube:
 
         Args:
             query: Search query string.
-            max_results: Maximum number of results (1-50).
+            max_results: Maximum number of results to return. Use 0 for all
+                         available results.
             params: Raw protobuf-encoded search filter (base64 string).
                     Ignored if any named filter is provided.
-            sort_by: Sort order — 'relevance', 'upload_date', 'view_count', 'rating'.
-            upload_date: Time filter — 'last_hour', 'today', 'this_week',
+            sort_by: Sort order - 'relevance', 'upload_date', 'view_count', 'rating'.
+            upload_date: Time filter - 'last_hour', 'today', 'this_week',
                          'this_month', 'this_year'.
-            type: Content type — 'video', 'channel', 'playlist', 'movie'.
-            duration: Duration filter — 'short' (<4min), 'medium' (4-20min),
+            type: Content type - 'video', 'channel', 'playlist', 'movie'.
+            duration: Duration filter - 'short' (<4min), 'medium' (4-20min),
                       'long' (>20min).
-            features: Feature filter(s) — 'live', '4k', 'hd', 'subtitles', 'cc',
+            features: Feature filter(s) - 'live', '4k', 'hd', 'subtitles', 'cc',
                       'creative_commons', '360', 'vr180', '3d', 'hdr'.
                       Can be a single string or list of strings.
 
         Returns:
-            SearchResult containing matched videos.
+            SearchResult containing matched videos and/or channels.
 
         Examples::
 
@@ -124,6 +125,7 @@ class YouTube:
             yt.search('podcast', type='video', duration='long')
             yt.search('news', upload_date='today', sort_by='view_count')
             yt.search('music', features=['4k', 'hdr'])
+            yt.search('tech channels', type='channel')
         """
         return self._search.search(
             query,

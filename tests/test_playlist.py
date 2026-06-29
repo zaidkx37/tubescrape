@@ -62,10 +62,8 @@ class TestParsePlaylistResponse:
         assert len(result.videos) == 2
         assert result.videos[0].video_id == 'vid1'
         assert result.videos[0].title == 'Video 1'
-        assert result.videos[0].position == 1
         assert result.videos[0].duration_seconds == 300
         assert result.videos[1].video_id == 'vid2'
-        assert result.videos[1].position == 2
         assert continuation is None
 
     def test_empty_playlist(self):
@@ -173,13 +171,12 @@ class TestParsePlaylistVideo:
         assert entry.channel == 'Channel'
         assert entry.duration == '3:30'
         assert entry.duration_seconds == 210
-        assert entry.position == 5
         assert entry.url == 'https://www.youtube.com/watch?v=abc123'
 
     def test_no_video_id(self):
         assert ResponseParser._parse_playlist_video({}) is None
 
-    def test_no_index(self):
+    def test_minimal_video(self):
         renderer = {
             'videoId': 'abc123',
             'title': {'simpleText': 'Test'},
@@ -187,4 +184,4 @@ class TestParsePlaylistVideo:
             'lengthText': {'simpleText': '1:00'},
         }
         entry = ResponseParser._parse_playlist_video(renderer)
-        assert entry.position == 0
+        assert entry.video_id == 'abc123'

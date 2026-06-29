@@ -6,6 +6,7 @@ from xml.etree import ElementTree
 from tubescrape.models import (
     ChannelPlaylistEntry,
     ChannelPlaylistsResult,
+    ChannelResult,
     PlaylistEntry,
     PlaylistResult,
     SearchResult,
@@ -217,9 +218,16 @@ class ResponseParser:
         )
 
     @staticmethod
-    def parse_search_response(data: dict, query: str, max_results: int) -> SearchResult:
-        """Parse the full search API response into a SearchResult."""
+    def parse_search_response(
+        data: dict, query: str, max_results: int,
+    ) -> tuple[SearchResult, str | None]:
+        """Parse the full search API response into a SearchResult.
+
+        Returns (SearchResult, continuation_token).
+        """
         videos: list[VideoResult] = []
+        channels: list[ChannelResult] = []
+        continuation: str | None = None
 
         try:
             sections = (
@@ -227,23 +235,186 @@ class ResponseParser:
                 ['primaryContents']['sectionListRenderer']['contents']
             )
         except (KeyError, TypeError):
-            return SearchResult(query=query, videos=[])
+            return SearchResult(query=query, videos=[]), None
 
         for section in sections:
+            # Continuation token at section level
+            cont = section.get('continuationItemRenderer')
+            if cont:
+                continuation = (
+                    cont.get('continuationEndpoint', {})
+                    .get('continuationCommand', {})
+                    .get('token')
+                )
+                continue
+
             items = section.get('itemSectionRenderer', {}).get('contents', [])
             for item in items:
                 renderer = item.get('videoRenderer')
-                if not renderer:
+                if renderer:
+                    video = ResponseParser.extract_video_renderer(renderer)
+                    if video:
+                        videos.append(video)
+                    if max_results > 0 and len(videos) >= max_results:
+                        return SearchResult(
+                            query=query, videos=videos, channels=channels,
+                        ), continuation
                     continue
 
-                video = ResponseParser.extract_video_renderer(renderer)
-                if video:
-                    videos.append(video)
+                ch_renderer = item.get('channelRenderer')
+                if ch_renderer:
+                    channel = ResponseParser.extract_channel_renderer(ch_renderer)
+                    if channel:
+                        channels.append(channel)
+                    if max_results > 0 and len(channels) >= max_results:
+                        return SearchResult(
+                            query=query, videos=videos, channels=channels,
+                        ), continuation
+                    continue
 
-                if len(videos) >= max_results:
-                    return SearchResult(query=query, videos=videos)
+        return SearchResult(
+            query=query, videos=videos, channels=channels,
+        ), continuation
 
-        return SearchResult(query=query, videos=videos)
+    @staticmethod
+    def parse_search_continuation(
+        data: dict, max_results: int,
+    ) -> tuple[list[VideoResult], list[ChannelResult], str | None]:
+        """Parse a search continuation response.
+
+        Returns (videos, channels, continuation_token).
+        """
+        videos: list[VideoResult] = []
+        channels: list[ChannelResult] = []
+        continuation: str | None = None
+
+        actions = data.get('onResponseReceivedCommands', [])
+        for action in actions:
+            items = (
+                action.get('appendContinuationItemsAction', {})
+                .get('continuationItems', [])
+            )
+            for item in items:
+                cont = item.get('continuationItemRenderer')
+                if cont:
+                    continuation = (
+                        cont.get('continuationEndpoint', {})
+                        .get('continuationCommand', {})
+                        .get('token')
+                    )
+                    continue
+
+                renderer = item.get('videoRenderer')
+                if renderer:
+                    video = ResponseParser.extract_video_renderer(renderer)
+                    if video:
+                        videos.append(video)
+                    if max_results > 0 and len(videos) >= max_results:
+                        return videos, channels, continuation
+                    continue
+
+                ch_renderer = item.get('channelRenderer')
+                if ch_renderer:
+                    channel = ResponseParser.extract_channel_renderer(ch_renderer)
+                    if channel:
+                        channels.append(channel)
+                    continue
+
+                # Some continuations nest results inside itemSectionRenderer
+                section_items = item.get('itemSectionRenderer', {}).get('contents', [])
+                for sub in section_items:
+                    renderer = sub.get('videoRenderer')
+                    if renderer:
+                        video = ResponseParser.extract_video_renderer(renderer)
+                        if video:
+                            videos.append(video)
+                        if max_results > 0 and len(videos) >= max_results:
+                            return videos, channels, continuation
+                        continue
+
+                    ch_renderer = sub.get('channelRenderer')
+                    if ch_renderer:
+                        channel = ResponseParser.extract_channel_renderer(ch_renderer)
+                        if channel:
+                            channels.append(channel)
+
+        return videos, channels, continuation
+
+    @staticmethod
+    def extract_channel_renderer(renderer: dict) -> ChannelResult | None:
+        """Parse a channelRenderer dict into a ChannelResult."""
+        channel_id = renderer.get('channelId', '')
+        if not channel_id:
+            return None
+
+        title = ResponseParser.get_text(renderer.get('title'))
+        description = ResponseParser.extract_description_snippet(renderer)
+
+        # YouTube swaps these fields: subscriberCountText often holds the
+        # handle (@name) while videoCountText holds the subscriber count.
+        raw_sub = ResponseParser.get_text(renderer.get('subscriberCountText'))
+        raw_vid = ResponseParser.get_text(renderer.get('videoCountText'))
+
+        subscriber_count = None
+        video_count = None
+        for text in (raw_sub, raw_vid):
+            if not text:
+                continue
+            lower = text.lower()
+            if 'subscriber' in lower:
+                subscriber_count = text
+            elif 'video' in lower:
+                video_count = text
+
+        thumbnails: list[Thumbnail] = []
+        for t in renderer.get('thumbnail', {}).get('thumbnails', []):
+            url = t.get('url', '')
+            if url:
+                thumbnails.append(Thumbnail(
+                    url=url,
+                    width=t.get('width', 0),
+                    height=t.get('height', 0),
+                ))
+
+        return ChannelResult(
+            channel_id=channel_id,
+            title=title,
+            description=description or None,
+            subscriber_count=subscriber_count,
+            video_count=video_count,
+            thumbnails=thumbnails,
+        )
+
+    @staticmethod
+    def extract_channel_name(data: dict) -> str | None:
+        """Extract channel name from a browse response's metadata."""
+        # metadata.channelMetadataRenderer.title
+        meta = data.get('metadata', {})
+        cmr = meta.get('channelMetadataRenderer', {})
+        title = cmr.get('title', '')
+        if title:
+            return title
+
+        # header.c4TabbedHeaderRenderer.title
+        header = data.get('header', {})
+        c4 = header.get('c4TabbedHeaderRenderer', {})
+        title = c4.get('title', '')
+        if title:
+            return title
+
+        # header.pageHeaderRenderer (new format)
+        page_header = header.get('pageHeaderRenderer', {})
+        ph_content = page_header.get('content', {}).get('pageHeaderViewModel', {})
+        title = (
+            ph_content.get('title', {})
+            .get('dynamicTextViewModel', {})
+            .get('text', {})
+            .get('content', '')
+        )
+        if title:
+            return title
+
+        return None
 
     @staticmethod
     def parse_browse_first_page(
@@ -346,7 +517,12 @@ class ResponseParser:
 
     @staticmethod
     def parse_video_details(data: dict) -> VideoInfo | None:
-        """Extract VideoInfo from InnerTube player response videoDetails."""
+        """Extract VideoInfo from InnerTube player response.
+
+        Combines data from videoDetails and microformat.playerMicroformatRenderer
+        (when available). The WEB client returns microformat with exact dates;
+        the ANDROID client does not.
+        """
         vd = data.get('videoDetails')
         if not vd:
             return None
@@ -360,6 +536,12 @@ class ResponseParser:
             for t in vd.get('thumbnail', {}).get('thumbnails', [])
         ]
 
+        # Extract microformat fields (WEB client only)
+        mf = (
+            data.get('microformat', {})
+            .get('playerMicroformatRenderer', {})
+        )
+
         return VideoInfo(
             video_id=vd.get('videoId', ''),
             title=vd.get('title', ''),
@@ -372,6 +554,12 @@ class ResponseParser:
             keywords=vd.get('keywords', []),
             is_live=vd.get('isLiveContent', False),
             is_private=vd.get('isPrivate', False),
+            publish_date=mf.get('publishDate'),
+            upload_date=mf.get('uploadDate'),
+            category=mf.get('category'),
+            is_family_safe=mf.get('isFamilySafe'),
+            is_unlisted=mf.get('isUnlisted'),
+            owner_url=mf.get('ownerProfileUrl'),
         )
 
     @staticmethod
@@ -564,10 +752,12 @@ class ResponseParser:
             tab_content = tab.get('tabRenderer', {}).get('content', {})
             section_list = tab_content.get('sectionListRenderer', {})
             for section in section_list.get('contents', []):
-                # New format: continuationItemViewModel at section level
+                # Continuation token at section level (skip, prefer item-level)
                 token = ResponseParser._extract_continuation_token_vm(section)
                 if token:
-                    continuation = token
+                    # Only use section-level token as fallback
+                    if continuation is None:
+                        continuation = token
                     continue
 
                 item_section = section.get('itemSectionRenderer', {})
@@ -578,6 +768,12 @@ class ResponseParser:
                         entry = ResponseParser._parse_playlist_video_lockup(lockup)
                         if entry:
                             videos.append(entry)
+                        continue
+
+                    # New format: continuationItemViewModel inside itemSection
+                    token = ResponseParser._extract_continuation_token_vm(item)
+                    if token:
+                        continuation = token
                         continue
 
                     # Legacy format: playlistVideoListRenderer
@@ -632,12 +828,20 @@ class ResponseParser:
                         videos.append(entry)
                     continue
 
+                # New format: lockupViewModel directly in continuationItems
+                lockup = item.get('lockupViewModel')
+                if lockup and lockup.get('contentType') == 'LOCKUP_CONTENT_TYPE_VIDEO':
+                    entry = ResponseParser._parse_playlist_video_lockup(lockup)
+                    if entry:
+                        videos.append(entry)
+                    continue
+
                 # New format: lockupViewModel inside itemSectionRenderer
                 isr = item.get('itemSectionRenderer', {})
                 for content in isr.get('contents', []):
-                    lockup = content.get('lockupViewModel')
-                    if lockup and lockup.get('contentType') == 'LOCKUP_CONTENT_TYPE_VIDEO':
-                        entry = ResponseParser._parse_playlist_video_lockup(lockup)
+                    sub_lockup = content.get('lockupViewModel')
+                    if sub_lockup and sub_lockup.get('contentType') == 'LOCKUP_CONTENT_TYPE_VIDEO':
+                        entry = ResponseParser._parse_playlist_video_lockup(sub_lockup)
                         if entry:
                             videos.append(entry)
 
@@ -976,7 +1180,6 @@ class ResponseParser:
             channel=channel,
             duration=duration_text or None,
             duration_seconds=ResponseParser.parse_duration(duration_text),
-            position=0,
             url=f'https://www.youtube.com/watch?v={video_id}',
             thumbnails=thumbnails,
         )
@@ -985,8 +1188,28 @@ class ResponseParser:
     def _extract_continuation_token_vm(item: dict) -> str | None:
         """Extract continuation token from a continuationItemViewModel."""
         civm = item.get('continuationItemViewModel', {})
+        if not civm:
+            return None
+
+        # Path 1: continuationCommand.innertubeCommand.continuationCommand.token
         inner = civm.get('continuationCommand', {}).get('innertubeCommand', {})
-        return inner.get('continuationCommand', {}).get('token')
+        token = inner.get('continuationCommand', {}).get('token')
+        if token:
+            return token
+
+        # Path 2: continuationCommand.token (simpler format)
+        token = civm.get('continuationCommand', {}).get('token')
+        if token:
+            return token
+
+        # Path 3: button.buttonViewModel.command.innertubeCommand.continuationCommand.token
+        button = civm.get('button', {}).get('buttonViewModel', {})
+        cmd = button.get('command', {}).get('innertubeCommand', {})
+        token = cmd.get('continuationCommand', {}).get('token')
+        if token:
+            return token
+
+        return None
 
     @staticmethod
     def _parse_playlist_video(renderer: dict) -> PlaylistEntry | None:
@@ -998,13 +1221,7 @@ class ResponseParser:
         title = ResponseParser.get_text(renderer.get('title'))
         channel = ResponseParser.get_text(renderer.get('shortBylineText'))
         duration_text = ResponseParser.get_text(renderer.get('lengthText'))
-        index_text = ResponseParser.get_text(renderer.get('index'))
         thumbnails = ResponseParser.extract_thumbnails(renderer)
-
-        try:
-            position = int(index_text) if index_text else 0
-        except ValueError:
-            position = 0
 
         return PlaylistEntry(
             video_id=video_id,
@@ -1012,7 +1229,6 @@ class ResponseParser:
             channel=channel,
             duration=duration_text or None,
             duration_seconds=ResponseParser.parse_duration(duration_text),
-            position=position,
             url=f'https://www.youtube.com/watch?v={video_id}',
             thumbnails=thumbnails,
         )

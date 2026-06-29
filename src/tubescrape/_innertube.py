@@ -176,9 +176,21 @@ class InnerTube:
     def build_player_payload(video_id: str) -> dict:
         """Build payload for /youtubei/v1/player.
 
-        Uses ANDROID client to avoid some restrictions.
+        Uses ANDROID client to get caption tracks for transcripts.
         """
         return {
             'context': {'client': InnerTube.ANDROID_CLIENT},
+            'videoId': video_id,
+        }
+
+    @staticmethod
+    def build_player_web_payload(video_id: str) -> dict:
+        """Build payload for /youtubei/v1/player using WEB client.
+
+        Returns richer metadata (microformat with exact dates, category, etc.)
+        but does not include caption tracks. Used by get_video_info().
+        """
+        return {
+            'context': {'client': InnerTube.WEB_CLIENT},
             'videoId': video_id,
         }
