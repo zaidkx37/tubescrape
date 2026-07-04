@@ -17,6 +17,7 @@ class InnerTube:
     VIDEOS_TAB_PARAMS: str = 'EgZ2aWRlb3PyBgQKAjoA'
     SHORTS_TAB_PARAMS: str = 'EgZzaG9ydHPyBgUKA5oBAA%3D%3D'
     PLAYLISTS_TAB_PARAMS: str = 'EglwbGF5bGlzdHPyBgQKAkIA'
+    STREAMS_TAB_PARAMS: str = 'EgdzdHJlYW1z8gYECgJ6AA%3D%3D'
     SEARCH_TAB_PARAMS: str = 'EgZzZWFyY2jyBgQKAloA'
 
     WEB_CLIENT: dict = {
@@ -132,6 +133,23 @@ class InnerTube:
             'context': {'client': InnerTube.WEB_CLIENT},
             'browseId': channel_id,
             'params': InnerTube.PLAYLISTS_TAB_PARAMS,
+        }
+
+    @staticmethod
+    def build_streams_payload(
+        channel_id: str,
+        continuation: str | None = None,
+    ) -> dict:
+        """Build payload for browsing a channel's Live/Streams tab."""
+        if continuation:
+            return {
+                'context': {'client': InnerTube.WEB_CLIENT},
+                'continuation': continuation,
+            }
+        return {
+            'context': {'client': InnerTube.WEB_CLIENT},
+            'browseId': channel_id,
+            'params': InnerTube.STREAMS_TAB_PARAMS,
         }
 
     @staticmethod

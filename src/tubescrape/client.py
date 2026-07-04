@@ -198,6 +198,42 @@ class YouTube:
             channel_id, max_results=max_results,
         )
 
+    # ── Channel Streams (Live) ──
+
+    def get_channel_streams(
+        self,
+        channel: str,
+        max_results: int = 0,
+    ) -> BrowseResult:
+        """Get live streams (completed and scheduled) from a channel's Live tab.
+
+        YouTube separates regular video uploads from live streams into
+        different tabs. Use this method to fetch past broadcasts, premieres,
+        and scheduled streams. Use get_channel_videos() for regular uploads.
+
+        Accepts a channel ID, full URL, or @handle.
+
+        Args:
+            channel: Channel ID (UC...), @handle, or full YouTube channel URL.
+            max_results: Maximum number of streams. Use 0 for all.
+
+        Returns:
+            BrowseResult containing the channel's live streams.
+        """
+        channel_id = self._resolve_channel(channel)
+        return self._browse.get_channel_streams(channel_id, max_results=max_results)
+
+    async def aget_channel_streams(
+        self,
+        channel: str,
+        max_results: int = 0,
+    ) -> BrowseResult:
+        """Async version of get_channel_streams."""
+        channel_id = await self._aresolve_channel(channel)
+        return await self._browse.aget_channel_streams(
+            channel_id, max_results=max_results,
+        )
+
     # ── Channel Shorts ──
 
     def get_channel_shorts(self, channel: str) -> ShortsResult:

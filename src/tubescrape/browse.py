@@ -198,6 +198,155 @@ class YouTubeBrowse:
             channel_id=channel_id, channel=channel_name, videos=all_videos,
         )
 
+    # ── Streams (Live) ──
+
+    def get_channel_streams(
+        self,
+        channel_id: str,
+        max_results: int = 0,
+    ) -> BrowseResult:
+        """Get live streams (completed and scheduled) from a channel's Live tab.
+
+        Args:
+            channel_id: YouTube channel ID (UC...).
+            max_results: Maximum number of streams to return. Use 0 for all.
+
+        Returns:
+            BrowseResult containing the channel's live streams.
+        """
+        all_videos: list[VideoResult] = []
+
+        payload = InnerTube.build_streams_payload(channel_id)
+        response = self._http.post(
+            InnerTube.BROWSE_URL,
+            json=payload,
+            params={'prettyPrint': 'false'},
+        )
+        data = response.json()
+
+        channel_name = ResponseParser.extract_channel_name(data)
+        videos, continuation = ResponseParser.parse_browse_first_page(data, channel_id)
+        all_videos.extend(videos)
+        page = 1
+        logger.info(
+            '[page %d] %d streams fetched (total: %d)',
+            page, len(videos), len(all_videos),
+        )
+
+        while continuation:
+            if max_results > 0 and len(all_videos) >= max_results:
+                all_videos = all_videos[:max_results]
+                break
+
+            page += 1
+            payload = InnerTube.build_streams_payload(channel_id, continuation=continuation)
+
+            try:
+                response = self._http.post(
+                    InnerTube.BROWSE_URL,
+                    json=payload,
+                    params={'prettyPrint': 'false'},
+                )
+                data = response.json()
+            except Exception as exc:
+                logger.warning('[page %d] Streams continuation failed: %s', page, exc)
+                break
+
+            videos, continuation = ResponseParser.parse_browse_continuation(data)
+            if not videos:
+                logger.info('[page %d] No more streams, stopping', page)
+                break
+
+            all_videos.extend(videos)
+            logger.info(
+                '[page %d] %d streams fetched (total: %d)',
+                page, len(videos), len(all_videos),
+            )
+
+        if max_results > 0:
+            all_videos = all_videos[:max_results]
+
+        logger.info(
+            'Streams complete: %d pages, %d total streams', page, len(all_videos),
+        )
+
+        if channel_name or channel_id:
+            all_videos = [
+                dataclasses.replace(
+                    v,
+                    channel=v.channel or channel_name or '',
+                    channel_id=v.channel_id or channel_id,
+                ) if not v.channel or not v.channel_id else v
+                for v in all_videos
+            ]
+
+        return BrowseResult(
+            channel_id=channel_id, channel=channel_name, videos=all_videos,
+        )
+
+    async def aget_channel_streams(
+        self,
+        channel_id: str,
+        max_results: int = 0,
+    ) -> BrowseResult:
+        """Async version of get_channel_streams."""
+        all_videos: list[VideoResult] = []
+
+        payload = InnerTube.build_streams_payload(channel_id)
+        response = await self._http.apost(
+            InnerTube.BROWSE_URL,
+            json=payload,
+            params={'prettyPrint': 'false'},
+        )
+        data = response.json()
+
+        channel_name = ResponseParser.extract_channel_name(data)
+        videos, continuation = ResponseParser.parse_browse_first_page(data, channel_id)
+        all_videos.extend(videos)
+        page = 1
+
+        while continuation:
+            if max_results > 0 and len(all_videos) >= max_results:
+                all_videos = all_videos[:max_results]
+                break
+
+            page += 1
+            payload = InnerTube.build_streams_payload(channel_id, continuation=continuation)
+
+            try:
+                response = await self._http.apost(
+                    InnerTube.BROWSE_URL,
+                    json=payload,
+                    params={'prettyPrint': 'false'},
+                )
+                data = response.json()
+            except Exception as exc:
+                logger.warning('[page %d] Streams continuation failed: %s', page, exc)
+                break
+
+            videos, continuation = ResponseParser.parse_browse_continuation(data)
+            if not videos:
+                break
+
+            all_videos.extend(videos)
+
+        if max_results > 0:
+            all_videos = all_videos[:max_results]
+
+        if channel_name or channel_id:
+            all_videos = [
+                dataclasses.replace(
+                    v,
+                    channel=v.channel or channel_name or '',
+                    channel_id=v.channel_id or channel_id,
+                ) if not v.channel or not v.channel_id else v
+                for v in all_videos
+            ]
+
+        return BrowseResult(
+            channel_id=channel_id, channel=channel_name, videos=all_videos,
+        )
+
     # ── Shorts ──
 
     def get_channel_shorts(self, channel_id: str) -> ShortsResult:

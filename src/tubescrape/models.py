@@ -316,9 +316,11 @@ class ChannelResult:
 
     channel_id: str
     title: str
+    handle: str | None = None
     description: str | None = None
     subscriber_count: str | None = None
     video_count: str | None = None
+    is_verified: bool = False
     thumbnails: list[Thumbnail] = field(default_factory=list)
 
     @property
@@ -337,12 +339,16 @@ class ChannelResult:
             'title': self.title,
             'url': self.url,
         }
+        if self.handle is not None:
+            result['handle'] = self.handle
         if self.description is not None:
             result['description'] = self.description
         if self.subscriber_count is not None:
             result['subscriber_count'] = self.subscriber_count
         if self.video_count is not None:
             result['video_count'] = self.video_count
+        if self.is_verified:
+            result['is_verified'] = self.is_verified
         if self.thumbnails:
             result['thumbnails'] = [t.to_dict() for t in self.thumbnails]
         return result

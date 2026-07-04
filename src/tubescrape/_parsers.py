@@ -272,6 +272,16 @@ class ResponseParser:
                         ), continuation
                     continue
 
+                # Shorts shelf in search results
+                shorts = ResponseParser._extract_shorts_from_shelf(item)
+                if shorts:
+                    videos.extend(shorts)
+                    if max_results > 0 and len(videos) >= max_results:
+                        videos = videos[:max_results]
+                        return SearchResult(
+                            query=query, videos=videos, channels=channels,
+                        ), continuation
+
         return SearchResult(
             query=query, videos=videos, channels=channels,
         ), continuation
@@ -337,6 +347,12 @@ class ResponseParser:
                         channel = ResponseParser.extract_channel_renderer(ch_renderer)
                         if channel:
                             channels.append(channel)
+                        continue
+
+                    # Shorts shelf in continuation results
+                    shorts = ResponseParser._extract_shorts_from_shelf(sub)
+                    if shorts:
+                        videos.extend(shorts)
 
         return videos, channels, continuation
 
@@ -355,16 +371,27 @@ class ResponseParser:
         raw_sub = ResponseParser.get_text(renderer.get('subscriberCountText'))
         raw_vid = ResponseParser.get_text(renderer.get('videoCountText'))
 
+        handle = None
         subscriber_count = None
         video_count = None
         for text in (raw_sub, raw_vid):
             if not text:
                 continue
             lower = text.lower()
-            if 'subscriber' in lower:
+            if text.startswith('@'):
+                handle = text
+            elif 'subscriber' in lower:
                 subscriber_count = text
             elif 'video' in lower:
                 video_count = text
+
+        # Verified badge
+        is_verified = False
+        for badge in renderer.get('ownerBadges', []):
+            badge_renderer = badge.get('metadataBadgeRenderer', {})
+            if badge_renderer.get('style') == 'BADGE_STYLE_TYPE_VERIFIED':
+                is_verified = True
+                break
 
         thumbnails: list[Thumbnail] = []
         for t in renderer.get('thumbnail', {}).get('thumbnails', []):
@@ -379,9 +406,11 @@ class ResponseParser:
         return ChannelResult(
             channel_id=channel_id,
             title=title,
+            handle=handle,
             description=description or None,
             subscriber_count=subscriber_count,
             video_count=video_count,
+            is_verified=is_verified,
             thumbnails=thumbnails,
         )
 
@@ -914,6 +943,62 @@ class ResponseParser:
             view_count=view_count or None,
             thumbnail_url=thumbnail_url,
         )
+
+    @staticmethod
+    def _extract_shorts_from_shelf(item: dict) -> list[VideoResult]:
+        """Extract shorts from a gridShelfViewModel in search results.
+
+        Shorts in search appear as shortsLockupViewModel items inside
+        gridShelfViewModel containers. This converts them to VideoResult
+        with is_short=True so they integrate with regular search results.
+        """
+        shelf = item.get('gridShelfViewModel')
+        if not shelf:
+            return []
+
+        results: list[VideoResult] = []
+        for content in shelf.get('contents', []):
+            lockup = content.get('shortsLockupViewModel')
+            if not lockup:
+                continue
+
+            on_tap = lockup.get('onTap', {}).get('innertubeCommand', {})
+            reel_ep = on_tap.get('reelWatchEndpoint', {})
+            video_id = reel_ep.get('videoId', '')
+            if not video_id:
+                continue
+
+            overlay = lockup.get('overlayMetadata', {})
+            title = overlay.get('primaryText', {}).get('content', '')
+            view_count = overlay.get('secondaryText', {}).get('content', '')
+
+            # Thumbnail
+            thumb_vm = lockup.get('thumbnailViewModel', {}).get('thumbnailViewModel', {})
+            sources = thumb_vm.get('image', {}).get('sources', [])
+            thumbnails = [
+                Thumbnail(
+                    url=s.get('url', ''),
+                    width=s.get('width', 0),
+                    height=s.get('height', 0),
+                )
+                for s in sources if s.get('url')
+            ]
+
+            results.append(VideoResult(
+                video_id=video_id,
+                title=title,
+                channel='',
+                channel_id=None,
+                duration=None,
+                duration_seconds=0,
+                published_text=None,
+                url=f'https://www.youtube.com/shorts/{video_id}',
+                is_short=True,
+                view_count=view_count or None,
+                thumbnails=thumbnails,
+            ))
+
+        return results
 
     # ── Channel Playlists Tab ──
 
