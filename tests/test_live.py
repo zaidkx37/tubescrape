@@ -63,7 +63,7 @@ from tubescrape.exceptions import (
 # Constants
 # ────────────────────────────────────────────────────────────────
 
-LEX_CHANNEL_ID = 'UCJIfeSCssxSC_Dhc5s7woww'
+LEX_CHANNEL_ID = 'UCSHZKyawb77ixDdsGog4iWA'
 LEX_HANDLE = '@lexfridman'
 LEX_VIDEO_ID = 'JN3KPFbWCy8'          # Lex Fridman #400 (Elon Musk)
 RICK_VIDEO_ID = 'dQw4w9WgXcQ'          # Rick Astley - Never Gonna Give You Up

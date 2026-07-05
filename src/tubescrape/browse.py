@@ -90,10 +90,14 @@ class YouTubeBrowse:
 
         Looks for patterns like:
             <meta itemprop="channelId" content="UCxxxxxx">
-            "channelId":"UCxxxxxx"
             "externalId":"UCxxxxxx"
+            "channelId":"UCxxxxxx"
+
+        externalId is preferred over channelId because channelId can match
+        related/featured channels (e.g. gridChannelRenderer items) that
+        appear earlier in the page source.
         """
-        # Meta tag (most reliable)
+        # Meta tag
         match = re.search(
             r'<meta\s+itemprop="channelId"\s+content="(UC[A-Za-z0-9_-]{22})"',
             html,
@@ -101,12 +105,21 @@ class YouTubeBrowse:
         if match:
             return match.group(1)
 
-        # JSON in page source
-        match = re.search(r'"channelId"\s*:\s*"(UC[A-Za-z0-9_-]{22})"', html)
+        # externalId is the page's own channel ID (most reliable in JSON)
+        match = re.search(r'"externalId"\s*:\s*"(UC[A-Za-z0-9_-]{22})"', html)
         if match:
             return match.group(1)
 
-        match = re.search(r'"externalId"\s*:\s*"(UC[A-Za-z0-9_-]{22})"', html)
+        # Fallback: channelId in channelMetadataRenderer context
+        match = re.search(
+            r'"channelMetadataRenderer"\s*:\s*\{[^}]*"channelId"\s*:\s*"(UC[A-Za-z0-9_-]{22})"',
+            html,
+        )
+        if match:
+            return match.group(1)
+
+        # Last resort: any channelId (may match related channels)
+        match = re.search(r'"channelId"\s*:\s*"(UC[A-Za-z0-9_-]{22})"', html)
         if match:
             return match.group(1)
 
