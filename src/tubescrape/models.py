@@ -60,15 +60,20 @@ class VideoResult:
         result: dict = {
             'video_id': self.video_id,
             'title': self.title,
-            'channel': self.channel,
-            'channel_id': self.channel_id,
-            'duration': self.duration,
-            'duration_seconds': self.duration_seconds,
-            'published_text': self.published_text,
             'url': self.url,
             'is_live': self.is_live,
             'is_short': self.is_short,
         }
+        if self.channel:
+            result['channel'] = self.channel
+        if self.channel_id is not None:
+            result['channel_id'] = self.channel_id
+        if self.duration is not None:
+            result['duration'] = self.duration
+        if self.duration_seconds:
+            result['duration_seconds'] = self.duration_seconds
+        if self.published_text is not None:
+            result['published_text'] = self.published_text
         if self.view_count is not None:
             result['view_count'] = self.view_count
         if self.short_view_count is not None:

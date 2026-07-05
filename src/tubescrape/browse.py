@@ -349,11 +349,14 @@ class YouTubeBrowse:
 
     # ── Shorts ──
 
-    def get_channel_shorts(self, channel_id: str) -> ShortsResult:
+    def get_channel_shorts(
+        self, channel_id: str, max_results: int = 0,
+    ) -> ShortsResult:
         """Get Shorts from a channel's Shorts tab.
 
         Args:
             channel_id: YouTube channel ID (UC...).
+            max_results: Maximum number of shorts to return. Use 0 for all.
 
         Returns:
             ShortsResult containing the channel's shorts.
@@ -365,10 +368,16 @@ class YouTubeBrowse:
         )
         data = response.json()
         result = ResponseParser.parse_shorts_tab(data, channel_id)
+        if max_results > 0 and len(result.shorts) > max_results:
+            result = ShortsResult(
+                channel_id=channel_id, shorts=result.shorts[:max_results],
+            )
         logger.info('Shorts: %d shorts fetched for %s', len(result.shorts), channel_id)
         return result
 
-    async def aget_channel_shorts(self, channel_id: str) -> ShortsResult:
+    async def aget_channel_shorts(
+        self, channel_id: str, max_results: int = 0,
+    ) -> ShortsResult:
         """Async version of get_channel_shorts."""
         payload = InnerTube.build_shorts_payload(channel_id)
         response = await self._http.apost(
@@ -376,7 +385,12 @@ class YouTubeBrowse:
             params={'prettyPrint': 'false'},
         )
         data = response.json()
-        return ResponseParser.parse_shorts_tab(data, channel_id)
+        result = ResponseParser.parse_shorts_tab(data, channel_id)
+        if max_results > 0 and len(result.shorts) > max_results:
+            result = ShortsResult(
+                channel_id=channel_id, shorts=result.shorts[:max_results],
+            )
+        return result
 
     # ── Channel Playlists ──
 

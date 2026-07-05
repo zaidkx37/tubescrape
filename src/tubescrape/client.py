@@ -236,24 +236,31 @@ class YouTube:
 
     # ── Channel Shorts ──
 
-    def get_channel_shorts(self, channel: str) -> ShortsResult:
+    def get_channel_shorts(
+        self, channel: str, max_results: int = 0,
+    ) -> ShortsResult:
         """Get Shorts from a YouTube channel's Shorts tab.
 
         Accepts a channel ID, full URL, or @handle.
 
         Args:
             channel: Channel ID (UC...), @handle, or full YouTube channel URL.
+            max_results: Maximum number of shorts. Use 0 for all.
 
         Returns:
             ShortsResult containing the channel's shorts.
         """
         channel_id = self._resolve_channel(channel)
-        return self._browse.get_channel_shorts(channel_id)
+        return self._browse.get_channel_shorts(channel_id, max_results=max_results)
 
-    async def aget_channel_shorts(self, channel: str) -> ShortsResult:
+    async def aget_channel_shorts(
+        self, channel: str, max_results: int = 0,
+    ) -> ShortsResult:
         """Async version of get_channel_shorts."""
         channel_id = await self._aresolve_channel(channel)
-        return await self._browse.aget_channel_shorts(channel_id)
+        return await self._browse.aget_channel_shorts(
+            channel_id, max_results=max_results,
+        )
 
     # ── Channel Playlists ──
 
