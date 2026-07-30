@@ -1,0 +1,1413 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>tubescrape Documentation - YouTube Scraping Library for Python | Guide & API Reference</title>
+  <meta name="description"
+    content="tubescrape documentation and complete guide. Scrape YouTube videos, channels, transcripts, comments, playlists, shorts, and live streams with Python. No API key needed. Full API reference with code examples.">
+  <meta name="keywords"
+    content="tubescrape, tubescrape docs, tubescrape documentation, tubescrape guide, youtube scraper python, youtube transcript python, youtube comments scraper, youtube channel scraper, innertube api, youtube search python, youtube scraping library, youtube data python, no api key youtube, youtube shorts scraper, youtube playlist scraper, python youtube sdk">
+  <meta name="author" content="Muhammad Zaid">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://zaid.sh/tubescrape.html">
+
+  <!-- Open Graph / Social -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="tubescrape - YouTube Scraping Toolkit for Python">
+  <meta property="og:description" content="Scrape YouTube videos, channels, transcripts, comments, and playlists with Python. No API key needed. Full documentation with code examples.">
+  <meta property="og:url" content="https://zaid.sh/tubescrape.html">
+  <meta property="og:site_name" content="tubescrape">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="tubescrape - YouTube Scraping Toolkit for Python">
+  <meta name="twitter:description" content="Scrape YouTube videos, channels, transcripts, comments, and playlists with Python. No API key needed. Sync + async. Full docs and API reference.">
+
+  <!-- JSON-LD Structured Data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareSourceCode",
+    "name": "tubescrape",
+    "description": "YouTube scraping toolkit for Python. Search videos, browse channels, fetch transcripts, pull comments, and scrape playlists using YouTube's InnerTube API. No API key needed.",
+    "url": "https://zaid.sh/tubescrape.html",
+    "codeRepository": "https://github.com/zaidkx37/tubescrape",
+    "programmingLanguage": "Python",
+    "runtimePlatform": "Python 3.10+",
+    "license": "https://opensource.org/licenses/MIT",
+    "author": {
+      "@type": "Person",
+      "name": "Muhammad Zaid",
+      "url": "https://zaid.sh"
+    },
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    },
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "Cross-platform"
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    "headline": "tubescrape Documentation - Complete Guide to YouTube Scraping with Python",
+    "description": "Full documentation for tubescrape Python library. Learn how to search YouTube, scrape channels, fetch transcripts, get comments with replies, and more without an API key.",
+    "url": "https://zaid.sh/tubescrape.html",
+    "author": {
+      "@type": "Person",
+      "name": "Muhammad Zaid"
+    },
+    "publisher": {
+      "@type": "Person",
+      "name": "Muhammad Zaid"
+    },
+    "about": {
+      "@type": "SoftwareApplication",
+      "name": "tubescrape",
+      "applicationCategory": "DeveloperApplication"
+    },
+    "proficiencyLevel": "Beginner"
+  }
+  </script>
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "Does tubescrape need a YouTube API key?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. tubescrape uses YouTube's internal InnerTube API, the same endpoints the YouTube website uses. No API key, no OAuth, no Google account required."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How do I get all comments on a video with tubescrape?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Pass max_results=0 to fetch every comment: yt.get_comments(url, max_results=0). Add replies=True to include replies."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can tubescrape fetch video likes and chapters?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. get_video_info() returns like count, comment count, subscriber count, chapters, AI-generated summary, and people mentioned. Set enrich=False if you only need basic metadata."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Does tubescrape work with YouTube Shorts?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. Shorts appear in search results with is_short=True. Use get_channel_shorts() to fetch shorts from a channel's Shorts tab."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can I use tubescrape with async Python?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Every method has an async variant prefixed with 'a'. For example: await yt.asearch(), await yt.aget_video_info(), await yt.aget_comments()."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How do I scrape live streams from a YouTube channel?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Use get_channel_streams(). YouTube keeps live streams, past broadcasts, and scheduled streams on a separate Live tab from regular uploads."
+        }
+      }
+    ]
+  }
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Source+Serif+4:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@400;500;600;700&display=swap"
+    rel="stylesheet">
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0
+    }
+
+    :root {
+      --bg: #0c0c0e;
+      --bg-raised: #141418;
+      --bg-code: #1a1a21;
+      --bg-code-inline: #1e1e26;
+      --border: #2a2a35;
+      --border-accent: #3d3d4a;
+      --text: #e2e2e8;
+      --text-muted: #8888a0;
+      --text-dim: #5a5a72;
+      --accent: #ff3e3e;
+      --accent-soft: #ff3e3e22;
+      --accent-glow: #ff3e3e15;
+      --green: #3ecf8e;
+      --blue: #5b9cf5;
+      --yellow: #f5c542;
+      --purple: #a78bfa;
+      --orange: #f59e42;
+      --font-display: 'Source Serif 4', Georgia, serif;
+      --font-body: 'DM Sans', system-ui, sans-serif;
+      --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+      --max-w: 860px;
+      --nav-w: 240px;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      font-size: 16px;
+    }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── NAV SIDEBAR ── */
+    .sidebar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: var(--nav-w);
+      height: 100vh;
+      background: var(--bg);
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      z-index: 100;
+      padding: 28px 0;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+    }
+
+    .sidebar-logo {
+      padding: 0 24px 20px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 16px;
+    }
+
+    .sidebar-logo .brand {
+      font-family: var(--font-mono);
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text);
+      letter-spacing: -0.02em;
+    }
+
+    .sidebar-logo .brand span {
+      color: var(--accent);
+    }
+
+    .sidebar-logo .version {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      margin-top: 4px;
+    }
+
+    .nav-group {
+      margin-bottom: 8px;
+    }
+
+    .nav-group-title {
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-dim);
+      padding: 12px 24px 6px;
+    }
+
+    .nav-link {
+      display: block;
+      padding: 5px 24px;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: all 0.15s;
+      border-left: 2px solid transparent;
+      font-weight: 450;
+    }
+
+    .nav-link:hover {
+      color: var(--text);
+      background: var(--accent-glow);
+    }
+
+    .nav-link.active {
+      color: var(--accent);
+      border-left-color: var(--accent);
+      background: var(--accent-soft);
+    }
+
+    /* ── MAIN ── */
+    .main {
+      margin-left: var(--nav-w);
+      padding: 0 48px 120px;
+      max-width: calc(var(--max-w) + 96px + var(--nav-w));
+    }
+
+    /* ── HERO ── */
+    .hero {
+      padding: 80px 0 64px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 56px;
+    }
+
+    .hero h1 {
+      font-family: var(--font-display);
+      font-size: 2.8rem;
+      font-weight: 700;
+      line-height: 1.15;
+      letter-spacing: -0.03em;
+      margin-bottom: 16px;
+    }
+
+    .hero h1 .red {
+      color: var(--accent);
+    }
+
+    .hero .tagline {
+      font-size: 1.15rem;
+      color: var(--text-muted);
+      max-width: 520px;
+      line-height: 1.65;
+    }
+
+    .hero .badges {
+      display: flex;
+      gap: 8px;
+      margin-top: 24px;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 500;
+      background: var(--bg-raised);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+    }
+
+    .badge .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--green);
+    }
+
+    .install-box {
+      margin-top: 28px;
+      background: var(--bg-code);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 20px;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+
+    .install-box:hover {
+      border-color: var(--border-accent);
+    }
+
+    .install-box .dollar {
+      color: var(--text-dim);
+      user-select: none;
+    }
+
+    .install-box .cmd {
+      color: var(--green);
+    }
+
+    .install-box .pkg {
+      color: var(--text);
+    }
+
+    .install-box .copy-hint {
+      color: var(--text-dim);
+      font-size: 0.7rem;
+      margin-left: 16px;
+    }
+
+    /* ── SECTIONS ── */
+    section {
+      margin-bottom: 56px;
+    }
+
+    section>h2 {
+      font-family: var(--font-display);
+      font-size: 1.65rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 8px;
+      padding-top: 24px;
+    }
+
+    section>h2 .marker {
+      color: var(--accent);
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      font-weight: 500;
+      margin-right: 8px;
+    }
+
+    section>.desc {
+      color: var(--text-muted);
+      margin-bottom: 24px;
+      font-size: 0.95rem;
+    }
+
+    h3 {
+      font-family: var(--font-mono);
+      font-size: 0.92rem;
+      font-weight: 600;
+      margin: 32px 0 12px;
+      color: var(--text);
+    }
+
+    h3 .returns {
+      color: var(--text-dim);
+      font-weight: 400;
+      font-size: 0.82rem;
+    }
+
+    p {
+      margin-bottom: 12px;
+      font-size: 0.92rem;
+    }
+
+    /* ── CODE BLOCKS ── */
+    pre {
+      background: var(--bg-code);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 18px 22px;
+      overflow-x: auto;
+      margin: 12px 0 20px;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      line-height: 1.7;
+      tab-size: 4;
+    }
+
+    code {
+      font-family: var(--font-mono);
+      font-size: 0.82em;
+    }
+
+    p code,
+    li code,
+    td code {
+      background: var(--bg-code-inline);
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 0.82em;
+      color: var(--orange);
+    }
+
+    /* Syntax colors */
+    .kw {
+      color: var(--purple);
+    }
+
+    .fn {
+      color: var(--blue);
+    }
+
+    .st {
+      color: var(--green);
+    }
+
+    .cm {
+      color: var(--text-dim);
+      font-style: italic;
+    }
+
+    .nr {
+      color: var(--orange);
+    }
+
+    .op {
+      color: var(--text-muted);
+    }
+
+    .va {
+      color: var(--text);
+    }
+
+    .bi {
+      color: var(--yellow);
+    }
+
+    /* ── TABLES ── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0 20px;
+      font-size: 0.85rem;
+    }
+
+    th {
+      text-align: left;
+      padding: 10px 14px;
+      font-weight: 600;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-dim);
+      border-bottom: 1px solid var(--border);
+    }
+
+    td {
+      padding: 9px 14px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-muted);
+      vertical-align: top;
+    }
+
+    td:first-child {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: var(--text);
+      white-space: nowrap;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    /* ── CALLOUTS ── */
+    .callout {
+      background: var(--bg-raised);
+      border-left: 3px solid var(--accent);
+      border-radius: 0 6px 6px 0;
+      padding: 14px 18px;
+      margin: 16px 0 20px;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .callout.tip {
+      border-left-color: var(--green);
+    }
+
+    .callout strong {
+      color: var(--text);
+    }
+
+    /* ── RESPONSE FORMAT ── */
+    .response-block {
+      background: var(--bg-raised);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 18px 22px;
+      margin: 12px 0 20px;
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      line-height: 1.65;
+      color: var(--text-muted);
+      overflow-x: auto;
+    }
+
+    /* ── FEATURE GRID ── */
+    .features {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin: 20px 0;
+    }
+
+    .feature-card {
+      background: var(--bg-raised);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 18px 20px;
+      transition: border-color 0.2s;
+    }
+
+    .feature-card:hover {
+      border-color: var(--border-accent);
+    }
+
+    .feature-card .icon {
+      font-size: 1.1rem;
+      margin-bottom: 8px;
+    }
+
+    .feature-card h4 {
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .feature-card p {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin: 0;
+      line-height: 1.5;
+    }
+
+    .sep {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 48px 0;
+    }
+
+    /* ── MOBILE ── */
+    .menu-toggle {
+      display: none;
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      z-index: 200;
+      background: var(--bg-raised);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 12px;
+      color: var(--text);
+      font-size: 0.85rem;
+      cursor: pointer;
+      font-family: var(--font-mono);
+    }
+
+    @media (max-width: 900px) {
+      .sidebar {
+        transform: translateX(-100%);
+        transition: transform 0.3s;
+      }
+
+      .sidebar.open {
+        transform: translateX(0);
+      }
+
+      .main {
+        margin-left: 0;
+        padding: 0 20px 80px;
+      }
+
+      .menu-toggle {
+        display: block;
+      }
+
+      .hero h1 {
+        font-size: 2rem;
+      }
+
+      .features {
+        grid-template-columns: 1fr;
+      }
+
+      .hero {
+        padding-top: 56px;
+      }
+    }
+
+    /* ── FOOTER ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 32px 0;
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    footer a {
+      color: var(--text-muted);
+      text-decoration: none;
+    }
+
+    footer a:hover {
+      color: var(--text);
+    }
+  </style>
+</head>
+
+<body>
+
+  <button class="menu-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')">
+    docs
+  </button>
+
+  <nav class="sidebar" id="sidebar" aria-label="Documentation navigation">
+    <div class="sidebar-logo">
+      <div class="brand" role="heading" aria-level="2">tube<span>scrape</span></div>
+      <div class="version">v0.5.0</div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-title">Getting Started</div>
+      <a class="nav-link" href="#installation">Installation</a>
+      <a class="nav-link" href="#quickstart">Quick Start</a>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-title">Search</div>
+      <a class="nav-link" href="#search">Video Search</a>
+      <a class="nav-link" href="#search-filters">Search Filters</a>
+      <a class="nav-link" href="#search-channels">Channel Search</a>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-title">Channels</div>
+      <a class="nav-link" href="#channel-videos">Videos</a>
+      <a class="nav-link" href="#channel-streams">Live Streams</a>
+      <a class="nav-link" href="#channel-shorts">Shorts</a>
+      <a class="nav-link" href="#channel-playlists">Playlists</a>
+      <a class="nav-link" href="#channel-search">Search Within</a>
+      <a class="nav-link" href="#channel-about">About / Info</a>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-title">Videos</div>
+      <a class="nav-link" href="#video-info">Video Info</a>
+      <a class="nav-link" href="#comments">Comments</a>
+      <a class="nav-link" href="#transcripts">Transcripts</a>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-title">Playlists</div>
+      <a class="nav-link" href="#playlists">Get Playlist</a>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-title">Advanced</div>
+      <a class="nav-link" href="#async">Async Support</a>
+      <a class="nav-link" href="#proxies">Proxies</a>
+      <a class="nav-link" href="#url-parsing">URL Parsing</a>
+      <a class="nav-link" href="#faq">FAQ</a>
+    </div>
+  </nav>
+
+  <main class="main">
+    <!-- ══════════ HERO ══════════ -->
+    <header class="hero" id="top">
+      <h1>tubescrape <span class="red">Documentation</span></h1>
+      <p class="tagline">
+        YouTube scraping library for Python. Search videos, browse channels, fetch transcripts,
+        pull comments, and scrape playlists using YouTube's InnerTube API. No API key needed.
+      </p>
+      <div class="badges">
+        <span class="badge"><span class="dot"></span> Python 3.10+</span>
+        <span class="badge">MIT License</span>
+        <span class="badge">Sync + Async</span>
+        <span class="badge">No API Key</span>
+      </div>
+      <div class="install-box" onclick="navigator.clipboard.writeText('pip install tubescrape')">
+        <span class="dollar">$</span>
+        <span class="cmd">pip install</span>
+        <span class="pkg">tubescrape</span>
+        <span class="copy-hint">click to copy</span>
+      </div>
+    </header>
+
+    <!-- ══════════ FEATURES OVERVIEW ══════════ -->
+    <div class="features">
+      <div class="feature-card">
+        <div class="icon">&#128269;</div>
+        <h4>Search</h4>
+        <p>Search videos, channels, and shorts with filters for date, duration, type, and features.</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">&#128250;</div>
+        <h4>Channels</h4>
+        <p>Browse videos, streams, shorts, playlists, search within a channel, and get about info.</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">&#128196;</div>
+        <h4>Transcripts</h4>
+        <p>Fetch transcripts with language selection, translation, and export to SRT, VTT, JSON.</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">&#128172;</div>
+        <h4>Comments</h4>
+        <p>Get comments with likes, replies, author info, hearted status, and pagination.</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">&#127916;</div>
+        <h4>Video Info</h4>
+        <p>Full metadata: likes, chapters, AI summary, people mentioned, subscriber count.</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">&#128274;</div>
+        <h4>No API Key</h4>
+        <p>Uses YouTube's InnerTube internal API. No Google account or API key needed.</p>
+      </div>
+    </div>
+
+    <hr class="sep">
+
+    <!-- ══════════ INSTALLATION ══════════ -->
+    <section id="installation">
+      <h2><span class="marker">#</span> Installation</h2>
+      <pre><span class="cm"># Core SDK</span>
+<span class="va">pip install tubescrape</span>
+
+<span class="cm"># With CLI (click + rich)</span>
+<span class="va">pip install tubescrape[cli]</span>
+
+<span class="cm"># With REST API (FastAPI)</span>
+<span class="va">pip install tubescrape[api]</span>
+
+<span class="cm"># Everything</span>
+<span class="va">pip install tubescrape[all]</span></pre>
+      <p>Requires Python 3.10+. Only dependency is <code>httpx</code>.</p>
+    </section>
+
+    <!-- ══════════ QUICKSTART ══════════ -->
+    <section id="quickstart">
+      <h2><span class="marker">#</span> Quick Start</h2>
+      <pre><span class="kw">from</span> <span class="va">tubescrape</span> <span class="kw">import</span> <span class="fn">YouTube</span>
+
+<span class="va">yt</span> <span class="op">=</span> <span class="fn">YouTube</span>()
+
+<span class="cm"># Search</span>
+<span class="va">results</span> <span class="op">=</span> <span class="va">yt</span>.<span class="fn">search</span>(<span class="st">'python tutorial'</span>)
+
+<span class="cm"># Channel videos</span>
+<span class="va">videos</span> <span class="op">=</span> <span class="va">yt</span>.<span class="fn">get_channel_videos</span>(<span class="st">'@lexfridman'</span>)
+
+<span class="cm"># Video info with likes, chapters, AI summary</span>
+<span class="va">info</span> <span class="op">=</span> <span class="va">yt</span>.<span class="fn">get_video_info</span>(<span class="st">'https://youtube.com/watch?v=dQw4w9WgXcQ'</span>)
+
+<span class="cm"># Transcript</span>
+<span class="va">transcript</span> <span class="op">=</span> <span class="va">yt</span>.<span class="fn">get_transcript</span>(<span class="st">'dQw4w9WgXcQ'</span>)
+
+<span class="cm"># Comments with replies</span>
+<span class="va">comments</span> <span class="op">=</span> <span class="va">yt</span>.<span class="fn">get_comments</span>(<span class="st">'dQw4w9WgXcQ'</span>, <span class="va">replies</span><span class="op">=</span><span class="bi">True</span>)
+
+<span class="cm"># All methods accept video/channel URLs, IDs, or @handles</span></pre>
+      <div class="callout tip">
+        <strong>Tip:</strong> Use <code>yt.close()</code> when done, or use as a context manager:
+        <code>with YouTube() as yt: ...</code>
+      </div>
+    </section>
+
+    <hr class="sep">
+
+    <!-- ══════════ SEARCH ══════════ -->
+    <section id="search">
+      <h2><span class="marker">#</span> Video Search</h2>
+      <p class="desc">Search YouTube and get videos, channels, and shorts in one call.</p>
+
+      <h3>search(query, max_results=20) <span class="returns">-> SearchResult</span></h3>
+      <pre><span class="va">result</span> <span class="op">=</span> <span class="va">yt</span>.<span class="fn">search</span>(<span class="st">'machine learning'</span>, <span class="va">max_results</span><span class="op">=</span><span class="nr">10</span>)
+
+<span class="kw">for</span> <span class="va">v</span> <span class="kw">in</span> <span class="va">result</span>.<span class="va">videos</span>:
+    <span class="bi">print</span>(<span class="va">v</span>.<span class="va">title</span>, <span class="va">v</span>.<span class="va">view_count</span>, <span class="va">v</span>.<span class="va">is_short</span>)
+
+<span class="cm"># Shorts are included with is_short=True</span>
+<span class="va">shorts</span> <span class="op">=</span> [<span class="va">v</span> <span class="kw">for</span> <span class="va">v</span> <span class="kw">in</span> <span class="va">result</span>.<span class="va">videos</span> <span class="kw">if</span> <span class="va">v</span>.<span class="va">is_short</span>]
+
+<span class="cm"># Channel results (when searching for channels)</span>
+<span class="kw">for</span> <span class="va">c</span> <span class="kw">in</span> <span class="va">result</span>.<span class="va">channels</span>:
+    <span class="bi">print</span>(<span class="va">c</span>.<span class="va">title</span>, <span class="va">c</span>.<span class="va">handle</span>, <span class="va">c</span>.<span class="va">is_verified</span>)</pre>
+      <p>Pass <code>max_results=0</code> to get all available results (paginated automatically).</p>
+    </section>
+
+    <!-- ══════════ SEARCH FILTERS ══════════ -->
+    <section id="search-filters">
+      <h2><span class="marker">#</span> Search Filters</h2>
+      <p class="desc">Filter search results by type, date, duration, sort order, and features.</p>
+
+      <pre><span class="cm"># Long videos uploaded today, sorted by views</span>
+<span class="va">yt</span>.<span class="fn">search</span>(<span class="st">'podcast'</span>, <span class="va">type</span><span class="op">=</span><span class="st">'video'</span>, <span class="va">duration</span><span class="op">=</span><span class="st">'long'</span>,
+         <span class="va">upload_date</span><span class="op">=</span><span class="st">'today'</span>, <span class="va">sort_by</span><span class="op">=</span><span class="st">'view_count'</span>)
+
+<span class="cm"># 4K HDR content</span>
+<span class="va">yt</span>.<span class="fn">search</span>(<span class="st">'nature'</span>, <span class="va">features</span><span class="op">=</span>[<span class="st">'4k'</span>, <span class="st">'hdr'</span>])
+
+<span class="cm"># Search for channels</span>
+<span class="va">yt</span>.<span class="fn">search</span>(<span class="st">'tech'</span>, <span class="va">type</span><span class="op">=</span><span class="st">'channel'</span>)</pre>
+
+      <table>
+        <tr>
+          <th>Parameter</th>
+          <th>Options</th>
+        </tr>
+        <tr>
+          <td>sort_by</td>
+          <td><code>relevance</code>, <code>upload_date</code>, <code>view_count</code>, <code>rating</code></td>
+        </tr>
+        <tr>
+          <td>upload_date</td>
+          <td><code>last_hour</code>, <code>today</code>, <code>this_week</code>, <code>this_month</code>,
+            <code>this_year</code></td>
+        </tr>
+        <tr>
+          <td>type</td>
+          <td><code>video</code>, <code>channel</code>, <code>playlist</code>, <code>movie</code></td>
+        </tr>
+        <tr>
+          <td>duration</td>
+          <td><code>short</code> (&lt;4min), <code>medium</code> (4-20min), <code>long</code> (&gt;20min)</td>
+        </tr>
+        <tr>
+          <td>features</td>
+          <td><code>live</code>, <code>4k</code>, <code>hd</code>, <code>subtitles</code>, <code>cc</code>,
+            <code>creative_commons</code>, <code>360</code>, <code>vr180</code>, <code>3d</code>, <code>hdr</code></td>
+        </tr>
+      </table>
+    </section>
+
+    <!-- ══════════ SEARCH CHANNELS ══════════ -->
+    <section id="search-channels">
+      <h2><span class="marker">#</span> Channel Search Results</h2>
+      <p class="desc">When searching with <code>type='channel'</code>, results include handle and verified status.</p>
+
+      <pre><span class="va">result</span> <span class="op">=</span> <span class="va">yt</span>.<span class="fn">search</span>(<span class="st">'lex fridman'</span>, <span class="va">type</span><span class="op">=</span><span class="st">'channel'</span>)
+
+<span class="kw">for</span> <span class="va">ch</span> <span class="kw">in</span> <span class="va">result</span>.<span class="va">channels</span>:
+    <span class="bi">print</span>(<span class="va">ch</span>.<span class="va">title</span>)            <span class="cm"># "Lex Fridman"</span>
+    <span class="bi">print</span>(<span class="va">ch</span>.<span class="va">handle</span>)           <span class="cm"># "@lexfridman"</span>
+    <span class="bi">print</span>(<span class="va">ch</span>.<span class="va">is_verified</span>)      <span class="cm"># True</span>
+    <span class="bi">print</span>(<span class="va">ch</span>.<span class="va">subscriber_count</span>) <span class="cm"># "5.01M subscribers"</span></pre>
+    </section>
+
+    <hr class="sep">
+
+    <!-- ══════════ CHANNEL VIDEOS ══════════ -->
+    <section id="channel-videos">
+      <h2><span class="marker">#</span> Channel Videos</h2>
+      <p class="desc">Get uploads from a channel's Videos tab. Accepts channel IDs, @handles, or URLs.</p>
+
+      <h3>get_channel_videos(channel, max_results=30) <span class="returns">-> BrowseResult</span></h3>
+      <pre><span class="va">result</span> <span class="op">=</span> <span class="va">yt</span>.<span class="fn">get_channel_videos</span>(<span class="st">'@lexfridman'</span>, <span class="va">max_results</span><span class="op">=</span><span class="nr">5</span>)
+
+<span class="bi">print</span>(<span class="va">result</span>.<span class="va">channel</span>)     <span class="cm"># "Lex Fridman"</span>
+<span class="bi">print</span>(<span class="va">result</span>.<span class="va">channel_id</span>)  <span class="cm"># "UCSHZKyawb77ixDdsGog4iWA"</span>
+
+<span class="kw">for</span> <span class="va">v</span> <span class="kw">in</span> <span class="va">result</span>.<span class="va">videos</span>:
+    <span class="bi">print</span>(<span class="va">v</span>.<span class="va">title</span>, <span class="va">v</span>.<span class="va">duration</span>, <span class="va">v</span>.<span class="va">view_count</span>)</pre>
+
+      <div class="callout">
+        <strong>Note:</strong> YouTube separates regular uploads from live streams and shorts into different tabs.
+        Use <code>get_channel_streams()</code> for live content and <code>get_channel_shorts()</code> for shorts.
+      </div>
+    </section>
+
+    <!-- ══════════ CHANNEL STREAMS ══════════ -->
+    <section id="channel-streams">
+      <h2><span class="marker">#</span> Channel Streams</h2>
+      <p class="desc">Fetch past broadcasts, premieres, and scheduled live streams from the Live tab.</p>
+
+      <h3>get_channel_streams(channel, max_results=0) <span class="returns">-> BrowseResult</span></h3>
+      <pre><span class="va">streams</span> <span class="op">=</span> <span class="va">yt</span>.<span class="fn">get_channel_streams</span>(<span class="st">'@CNN'</span>, <span class="va">max_results</span><span class="op">=</span><span class="nr">5</span>)
+
+<span class="kw">for</span> <span class="va">v</span> <span class="kw">in</span> <span class="va">streams</span>.<span class="va">videos</span>:
+    <span class="bi">print</span>(<span class="va">v</span>.<span class="va">title</span>, <span class="va">v</span>.<span class="va">is_live</span>)</pre>
+      <p>Returns the same <code>BrowseResult</code> with <code>VideoResult</code> objects. Currently live streams have
+        <code>is_live=True</code>.</p>
+    </section>
+
+    <!-- ══════════ CHANNEL SHORTS ══════════ -->
+    <section id="channel-shorts">
+      <h2><span class="marker">#</span> Channel Shorts</h2>
+      <p class="desc">Get shorts from a channel's Shorts tab.</p>
+
+      <h3>get_channel_shorts(channel, max_results=0) <span class="returns">-> ShortsResult</span></h3>
+      <pre><span class="va">shorts</span> <span class="op">=</span> <span class="va">yt</span>.<span class="fn">get_channel_shorts</span>(<span class="st">'@CNN'</span>, <span class="va">max_results</span><span class="op">=</span><span class="nr">10</span>)
+
+<span class="kw">for</span> <span class="va">s</span> <span class="kw">in</span> <span class="va">shorts</span>.<span class="va">shorts</span>:
+    <span class="bi">print</span>(<span class="va">s</span>.<span class="va">title</span>, <span class="va">s</span>.<span class="va">view_count</span>, <span class="va">s</span>.<span class="va">url</span>)</pre>
+      <p>Returns <code>ShortResult</code> objects with <code>video_id</code>, <code>title</code>,
+        <code>view_count</code>, and <code>thumbnail_url</code>.</p>
+    </section>
+
+    <!-- ══════════ CHANNEL PLAYLISTS ══════════ -->
+    <section id="channel-playlists">
+      <h2><span class="marker">#</span> Channel Playlists</h2>
+      <p class="desc">List playlists from a channel's Playlists tab.</p>
+
+      <h3>get_channel_playlists(channel) <span class="returns">-> ChannelPlaylistsResult</span></h3>
+      <pre><span class="va">result</span> <span class="op">=</span> <span class="va">yt</span>.<span class="fn">get_channel_playlists</span>(<span class="st">'@lexfridman'</span>)
+
+<span class="kw">for</span> <span class="va">p</span> <span class="kw">in</span> <span class="va">result</span>.<span class="va">playlists</span>:
+    <span class="bi">print</span>(<span class="va">p</span>.<span class="va">title</span>, <span class="va">p</span>.<span class="va">video_count</span>, <span class="va">p</span>.<span class="va">url</span>)</pre>
+    </section>
+
+    <!-- ══════════ CHANNEL SEARCH ══════════ -->
+    <section id="channel-search">
+      <h2><span class="marker">#</span> Search Within Channel</h2>
+      <p class="desc">Search for videos within a specific channel.</p>
+
+      <h3>search_channel(channel, query, max_results=0) <span class="returns">-> SearchResult</span></h3>
+      <pre><span class="va">result</span> <span class="op">=</span> <span class="va">yt</span>.<span class="fn">search_channel</span>(<span class="st">'@lexfridman'</span>, <span class="st">'elon musk'</span>)
+
+<span class="kw">for</span> <span class="va">v</span> <span class="kw">in</span> <span class="va">result</span>.<span class="va">videos</span>:
+    <span class="bi">print</span>(<span class="va">v</span>.<span class="va">title</span>)</pre>
+    </section>
+
+    <!-- ══════════ CHANNEL ABOUT ══════════ -->
+    <section id="channel-about">
+      <h2><span class="marker">#</span> Channel About</h2>
+      <p class="desc">Get channel description, country, join date, total views, and external links.</p>
+
+      <h3>get_channel_about(channel) <span class="returns">-> ChannelAbout</span></h3>
+      <pre><span class="va">about</span> <span class="op">=</span> <span class="va">yt</span>.<span class="fn">get_channel_about</span>(<span class="st">'@ycombinator'</span>)
+
+<span class="bi">print</span>(<span class="va">about</span>.<span class="va">title</span>)             <span class="cm"># "Y Combinator"</span>
+<span class="bi">print</span>(<span class="va">about</span>.<span class="va">description</span>)       <span class="cm"># Full channel description</span>
+<span class="bi">print</span>(<span class="va">about</span>.<span class="va">country</span>)           <span class="cm"># "United States"</span>
+<span class="bi">print</span>(<span class="va">about</span>.<span class="va">joined_date</span>)       <span class="cm"># "Oct 24, 2013"</span>
+<span class="bi">print</span>(<span class="va">about</span>.<span class="va">subscriber_count</span>)  <span class="cm"># "2.32M subscribers"</span>
+<span class="bi">print</span>(<span class="va">about</span>.<span class="va">view_count</span>)        <span class="cm"># "103,989,970 views"</span>
+<span class="bi">print</span>(<span class="va">about</span>.<span class="va">video_count</span>)       <span class="cm"># "880 videos"</span>
+
+<span class="kw">for</span> <span class="va">link</span> <span class="kw">in</span> <span class="va">about</span>.<span class="va">links</span>:
+    <span class="bi">print</span>(<span class="va">link</span>.<span class="va">title</span>, <span class="va">link</span>.<span class="va">url</span>)  <span class="cm"># "Apply to YC" "ycombinator.com/apply"</span></pre>
+    </section>
+
+    <hr class="sep">
+
+    <!-- ══════════ VIDEO INFO ══════════ -->
+    <section id="video-info">
+      <h2><span class="marker">#</span> Video Info</h2>
+      <p class="desc">
+        Get full video metadata including likes, chapters, AI summary, and people mentioned.
+      </p>
+
+      <h3>get_video_info(video, enrich=True) <span class="returns">-> VideoInfo</span></h3>
+      <pre><span class="va">info</span> <span class="op">=</span> <span class="va">yt</span>.<span class="fn">get_video_info</span>(<span class="st">'https://youtube.com/watch?v=dQw4w9WgXcQ'</span>)
+
+<span class="cm"># Basic metadata</span>
+<span class="va">info</span>.<span class="va">title</span>            <span class="cm"># Video title</span>
+<span class="va">info</span>.<span class="va">channel</span>          <span class="cm"># Channel name</span>
+<span class="va">info</span>.<span class="va">description</span>      <span class="cm"># Full description</span>
+<span class="va">info</span>.<span class="va">view_count</span>       <span class="cm"># 119556 (int)</span>
+<span class="va">info</span>.<span class="va">duration_seconds</span> <span class="cm"># 2940</span>
+<span class="va">info</span>.<span class="va">publish_date</span>     <span class="cm"># "2026-07-26T13:32:05-07:00"</span>
+<span class="va">info</span>.<span class="va">category</span>         <span class="cm"># "Science & Technology"</span>
+<span class="va">info</span>.<span class="va">keywords</span>         <span class="cm"># ["YC", "Y Combinator"]</span>
+
+<span class="cm"># Enriched data (from /next endpoint, requires enrich=True)</span>
+<span class="va">info</span>.<span class="va">like_count</span>       <span class="cm"># "3.8K"</span>
+<span class="va">info</span>.<span class="va">comment_count</span>    <span class="cm"># 148</span>
+<span class="va">info</span>.<span class="va">subscriber_count</span> <span class="cm"># "2.32M subscribers"</span>
+<span class="va">info</span>.<span class="va">date_text</span>        <span class="cm"># "Jul 26, 2026"</span>
+<span class="va">info</span>.<span class="va">ai_summary</span>       <span class="cm"># YouTube's AI-generated summary</span>
+
+<span class="cm"># Chapters</span>
+<span class="kw">for</span> <span class="va">ch</span> <span class="kw">in</span> <span class="va">info</span>.<span class="va">chapters</span>:
+    <span class="bi">print</span>(<span class="va">ch</span>.<span class="va">time_description</span>, <span class="va">ch</span>.<span class="va">start_seconds</span>, <span class="va">ch</span>.<span class="va">title</span>)
+
+<span class="cm"># People mentioned</span>
+<span class="kw">for</span> <span class="va">p</span> <span class="kw">in</span> <span class="va">info</span>.<span class="va">people_mentioned</span>:
+    <span class="bi">print</span>(<span class="va">p</span>.<span class="va">name</span>, <span class="va">p</span>.<span class="va">description</span>)</pre>
+
+      <div class="callout tip">
+        <strong>Performance:</strong> Set <code>enrich=False</code> for a single API call with basic metadata only
+        (no likes, chapters, or AI summary). Default <code>enrich=True</code> uses 2 API calls.
+      </div>
+    </section>
+
+    <!-- ══════════ COMMENTS ══════════ -->
+    <section id="comments">
+      <h2><span class="marker">#</span> Comments</h2>
+      <p class="desc">
+        Fetch top-level comments with author info, likes, and optional replies.
+      </p>
+
+      <h3>get_comments(video, max_results=20, replies=False) <span class="returns">-> CommentsResult</span></h3>
+      <pre><span class="cm"># Top-level comments only</span>
+<span class="va">result</span> <span class="op">=</span> <span class="va">yt</span>.<span class="fn">get_comments</span>(<span class="st">'dQw4w9WgXcQ'</span>, <span class="va">max_results</span><span class="op">=</span><span class="nr">10</span>)
+
+<span class="bi">print</span>(<span class="va">result</span>.<span class="va">comment_count</span>)  <span class="cm"># Total comments on video</span>
+
+<span class="kw">for</span> <span class="va">c</span> <span class="kw">in</span> <span class="va">result</span>.<span class="va">comments</span>:
+    <span class="bi">print</span>(<span class="va">c</span>.<span class="va">author</span>)            <span class="cm"># "@username"</span>
+    <span class="bi">print</span>(<span class="va">c</span>.<span class="va">text</span>)              <span class="cm"># Comment text</span>
+    <span class="bi">print</span>(<span class="va">c</span>.<span class="va">like_count</span>)        <span class="cm"># 66</span>
+    <span class="bi">print</span>(<span class="va">c</span>.<span class="va">reply_count</span>)       <span class="cm"># 2</span>
+    <span class="bi">print</span>(<span class="va">c</span>.<span class="va">published_text</span>)    <span class="cm"># "2 days ago"</span>
+    <span class="bi">print</span>(<span class="va">c</span>.<span class="va">is_hearted</span>)        <span class="cm"># True (creator hearted)</span>
+    <span class="bi">print</span>(<span class="va">c</span>.<span class="va">is_creator</span>)        <span class="cm"># True (channel owner)</span>
+
+<span class="cm"># With replies (1 extra API call per comment with replies)</span>
+<span class="va">result</span> <span class="op">=</span> <span class="va">yt</span>.<span class="fn">get_comments</span>(<span class="st">'dQw4w9WgXcQ'</span>, <span class="va">replies</span><span class="op">=</span><span class="bi">True</span>)
+
+<span class="kw">for</span> <span class="va">c</span> <span class="kw">in</span> <span class="va">result</span>.<span class="va">comments</span>:
+    <span class="kw">for</span> <span class="va">r</span> <span class="kw">in</span> <span class="va">c</span>.<span class="va">replies</span>:
+        <span class="bi">print</span>(<span class="va">r</span>.<span class="va">author</span>, <span class="va">r</span>.<span class="va">text</span>)
+
+<span class="cm"># Get ALL comments</span>
+<span class="va">all_comments</span> <span class="op">=</span> <span class="va">yt</span>.<span class="fn">get_comments</span>(<span class="st">'dQw4w9WgXcQ'</span>, <span class="va">max_results</span><span class="op">=</span><span class="nr">0</span>)</pre>
+
+      <div class="callout">
+        <strong>Note:</strong> YouTube comments are 2 levels deep. Replies to replies appear as flat level-1
+        replies with an @mention. Setting <code>replies=True</code> triggers one extra API call per
+        comment that has replies.
+      </div>
+    </section>
+
+    <!-- ══════════ TRANSCRIPTS ══════════ -->
+    <section id="transcripts">
+      <h2><span class="marker">#</span> Transcripts</h2>
+      <p class="desc">
+        Fetch video transcripts with language selection, translation, and export to multiple formats.
+      </p>
+
+      <h3>get_transcript(video, languages=None, timestamps=True, translate_to=None) <span class="returns">->
+          Transcript</span></h3>
+      <pre><span class="cm"># Basic transcript</span>
+<span class="va">t</span> <span class="op">=</span> <span class="va">yt</span>.<span class="fn">get_transcript</span>(<span class="st">'dQw4w9WgXcQ'</span>)
+<span class="bi">print</span>(<span class="va">t</span>.<span class="va">text</span>)  <span class="cm"># Full text joined</span>
+
+<span class="cm"># With segments (timestamps)</span>
+<span class="kw">for</span> <span class="va">s</span> <span class="kw">in</span> <span class="va">t</span>.<span class="va">segments</span>:
+    <span class="bi">print</span>(<span class="va">s</span>.<span class="va">start</span>, <span class="va">s</span>.<span class="va">duration</span>, <span class="va">s</span>.<span class="va">text</span>)
+
+<span class="cm"># Specific language</span>
+<span class="va">t</span> <span class="op">=</span> <span class="va">yt</span>.<span class="fn">get_transcript</span>(<span class="st">'video_id'</span>, <span class="va">languages</span><span class="op">=</span>[<span class="st">'es'</span>, <span class="st">'en'</span>])
+
+<span class="cm"># Translate to another language</span>
+<span class="va">t</span> <span class="op">=</span> <span class="va">yt</span>.<span class="fn">get_transcript</span>(<span class="st">'video_id'</span>, <span class="va">translate_to</span><span class="op">=</span><span class="st">'fr'</span>)
+
+<span class="cm"># Plain text (no timestamps)</span>
+<span class="va">t</span> <span class="op">=</span> <span class="va">yt</span>.<span class="fn">get_transcript</span>(<span class="st">'video_id'</span>, <span class="va">timestamps</span><span class="op">=</span><span class="bi">False</span>)</pre>
+
+      <h3>list_transcripts(video) <span class="returns">-> list[TranscriptListEntry]</span></h3>
+      <pre><span class="va">tracks</span> <span class="op">=</span> <span class="va">yt</span>.<span class="fn">list_transcripts</span>(<span class="st">'dQw4w9WgXcQ'</span>)
+
+<span class="kw">for</span> <span class="va">t</span> <span class="kw">in</span> <span class="va">tracks</span>:
+    <span class="bi">print</span>(<span class="va">t</span>.<span class="va">language</span>, <span class="va">t</span>.<span class="va">language_code</span>, <span class="va">t</span>.<span class="va">is_generated</span>, <span class="va">t</span>.<span class="va">is_translatable</span>)</pre>
+
+      <h3>Formatting & Saving</h3>
+      <pre><span class="cm"># Format as SRT, VTT, JSON, or text</span>
+<span class="va">srt</span> <span class="op">=</span> <span class="fn">YouTube</span>.<span class="fn">format_transcript</span>(<span class="va">transcript</span>, <span class="st">'srt'</span>)
+<span class="va">vtt</span> <span class="op">=</span> <span class="fn">YouTube</span>.<span class="fn">format_transcript</span>(<span class="va">transcript</span>, <span class="st">'vtt'</span>)
+
+<span class="cm"># Save to file (format inferred from extension)</span>
+<span class="va">transcript</span>.<span class="fn">save</span>(<span class="st">'subtitles.srt'</span>)
+<span class="va">transcript</span>.<span class="fn">save</span>(<span class="st">'output.json'</span>)
+<span class="va">transcript</span>.<span class="fn">save</span>(<span class="st">'captions.vtt'</span>)</pre>
+    </section>
+
+    <hr class="sep">
+
+    <!-- ══════════ PLAYLISTS ══════════ -->
+    <section id="playlists">
+      <h2><span class="marker">#</span> Playlists</h2>
+      <p class="desc">Fetch videos from any YouTube playlist with full pagination.</p>
+
+      <h3>get_playlist(playlist, max_results=0) <span class="returns">-> PlaylistResult</span></h3>
+      <pre><span class="va">result</span> <span class="op">=</span> <span class="va">yt</span>.<span class="fn">get_playlist</span>(<span class="st">'PLrAXtmErZgOeiKm4sgNOknGvNjby9efdf'</span>)
+
+<span class="cm"># Also accepts full URLs</span>
+<span class="va">result</span> <span class="op">=</span> <span class="va">yt</span>.<span class="fn">get_playlist</span>(<span class="st">'https://youtube.com/playlist?list=PLrAXtmErZgOeiKm4sgNOknGvNjby9efdf'</span>)
+
+<span class="bi">print</span>(<span class="va">result</span>.<span class="va">title</span>)    <span class="cm"># Playlist title</span>
+<span class="bi">print</span>(<span class="va">result</span>.<span class="va">channel</span>)  <span class="cm"># Playlist owner</span>
+
+<span class="kw">for</span> <span class="va">v</span> <span class="kw">in</span> <span class="va">result</span>.<span class="va">videos</span>:
+    <span class="bi">print</span>(<span class="va">v</span>.<span class="va">title</span>, <span class="va">v</span>.<span class="va">channel</span>, <span class="va">v</span>.<span class="va">duration</span>)</pre>
+    </section>
+
+    <hr class="sep">
+
+    <!-- ══════════ ASYNC ══════════ -->
+    <section id="async">
+      <h2><span class="marker">#</span> Async Support</h2>
+      <p class="desc">Every method has an async counterpart prefixed with <code>a</code>.</p>
+
+      <pre><span class="kw">import</span> <span class="va">asyncio</span>
+<span class="kw">from</span> <span class="va">tubescrape</span> <span class="kw">import</span> <span class="fn">YouTube</span>
+
+<span class="kw">async def</span> <span class="fn">main</span>():
+    <span class="kw">async with</span> <span class="fn">YouTube</span>() <span class="kw">as</span> <span class="va">yt</span>:
+        <span class="va">result</span> <span class="op">=</span> <span class="kw">await</span> <span class="va">yt</span>.<span class="fn">asearch</span>(<span class="st">'python'</span>)
+        <span class="va">info</span> <span class="op">=</span> <span class="kw">await</span> <span class="va">yt</span>.<span class="fn">aget_video_info</span>(<span class="st">'dQw4w9WgXcQ'</span>)
+        <span class="va">transcript</span> <span class="op">=</span> <span class="kw">await</span> <span class="va">yt</span>.<span class="fn">aget_transcript</span>(<span class="st">'dQw4w9WgXcQ'</span>)
+        <span class="va">comments</span> <span class="op">=</span> <span class="kw">await</span> <span class="va">yt</span>.<span class="fn">aget_comments</span>(<span class="st">'dQw4w9WgXcQ'</span>)
+
+<span class="va">asyncio</span>.<span class="fn">run</span>(<span class="fn">main</span>())</pre>
+
+      <table>
+        <tr>
+          <th>Sync</th>
+          <th>Async</th>
+        </tr>
+        <tr>
+          <td>search()</td>
+          <td>asearch()</td>
+        </tr>
+        <tr>
+          <td>get_channel_videos()</td>
+          <td>aget_channel_videos()</td>
+        </tr>
+        <tr>
+          <td>get_channel_streams()</td>
+          <td>aget_channel_streams()</td>
+        </tr>
+        <tr>
+          <td>get_channel_shorts()</td>
+          <td>aget_channel_shorts()</td>
+        </tr>
+        <tr>
+          <td>get_channel_playlists()</td>
+          <td>aget_channel_playlists()</td>
+        </tr>
+        <tr>
+          <td>get_channel_about()</td>
+          <td>aget_channel_about()</td>
+        </tr>
+        <tr>
+          <td>search_channel()</td>
+          <td>asearch_channel()</td>
+        </tr>
+        <tr>
+          <td>get_video_info()</td>
+          <td>aget_video_info()</td>
+        </tr>
+        <tr>
+          <td>get_comments()</td>
+          <td>aget_comments()</td>
+        </tr>
+        <tr>
+          <td>get_transcript()</td>
+          <td>aget_transcript()</td>
+        </tr>
+        <tr>
+          <td>list_transcripts()</td>
+          <td>alist_transcripts()</td>
+        </tr>
+        <tr>
+          <td>get_playlist()</td>
+          <td>aget_playlist()</td>
+        </tr>
+      </table>
+    </section>
+
+    <!-- ══════════ PROXIES ══════════ -->
+    <section id="proxies">
+      <h2><span class="marker">#</span> Proxies</h2>
+      <p class="desc">Configure proxies for scraping at scale. Supports proxy rotation and separate transcript proxies.
+      </p>
+
+      <pre><span class="cm"># Single proxy</span>
+<span class="va">yt</span> <span class="op">=</span> <span class="fn">YouTube</span>(<span class="va">proxy</span><span class="op">=</span><span class="st">'http://user:pass@host:port'</span>)
+
+<span class="cm"># Proxy rotation (round-robin)</span>
+<span class="va">yt</span> <span class="op">=</span> <span class="fn">YouTube</span>(<span class="va">proxies</span><span class="op">=</span>[
+    <span class="st">'http://proxy1:8080'</span>,
+    <span class="st">'http://proxy2:8080'</span>,
+    <span class="st">'http://proxy3:8080'</span>,
+])
+
+<span class="cm"># Separate residential proxies for transcripts</span>
+<span class="cm"># (YouTube's player endpoint is stricter about datacenter IPs)</span>
+<span class="va">yt</span> <span class="op">=</span> <span class="fn">YouTube</span>(
+    <span class="va">proxies</span><span class="op">=</span>[<span class="st">'http://dc-proxy:8080'</span>],               <span class="cm"># search/browse</span>
+    <span class="va">transcript_proxies</span><span class="op">=</span>[<span class="st">'http://resi-proxy:8080'</span>],  <span class="cm"># transcripts</span>
+)</pre>
+
+      <table>
+        <tr>
+          <th>Parameter</th>
+          <th>Description</th>
+        </tr>
+        <tr>
+          <td>proxy</td>
+          <td>Single proxy URL for all requests</td>
+        </tr>
+        <tr>
+          <td>proxies</td>
+          <td>List of proxy URLs for rotation</td>
+        </tr>
+        <tr>
+          <td>timeout</td>
+          <td>Request timeout in seconds (default: 30)</td>
+        </tr>
+        <tr>
+          <td>max_retries</td>
+          <td>Max retry attempts on failure (default: 3)</td>
+        </tr>
+        <tr>
+          <td>cookies</td>
+          <td>Additional cookies dict for all requests</td>
+        </tr>
+        <tr>
+          <td>transcript_proxy</td>
+          <td>Residential proxy for transcript endpoints</td>
+        </tr>
+        <tr>
+          <td>transcript_proxies</td>
+          <td>List of residential proxies for transcript rotation</td>
+        </tr>
+      </table>
+    </section>
+
+    <!-- ══════════ URL PARSING ══════════ -->
+    <section id="url-parsing">
+      <h2><span class="marker">#</span> URL Parsing</h2>
+      <p class="desc">Extract IDs from any YouTube URL format. All methods accept URLs, IDs, or @handles directly, but
+        these utilities are available if needed.</p>
+
+      <pre><span class="kw">from</span> <span class="va">tubescrape</span> <span class="kw">import</span> <span class="fn">YouTube</span>
+
+<span class="cm"># Video ID from any format</span>
+<span class="fn">YouTube</span>.<span class="fn">extract_video_id</span>(<span class="st">'https://youtube.com/watch?v=dQw4w9WgXcQ'</span>)  <span class="cm"># 'dQw4w9WgXcQ'</span>
+<span class="fn">YouTube</span>.<span class="fn">extract_video_id</span>(<span class="st">'https://youtu.be/dQw4w9WgXcQ'</span>)           <span class="cm"># 'dQw4w9WgXcQ'</span>
+<span class="fn">YouTube</span>.<span class="fn">extract_video_id</span>(<span class="st">'dQw4w9WgXcQ'</span>)                          <span class="cm"># 'dQw4w9WgXcQ'</span>
+
+<span class="cm"># Channel ID</span>
+<span class="fn">YouTube</span>.<span class="fn">extract_channel_id</span>(<span class="st">'https://youtube.com/@lexfridman'</span>)      <span class="cm"># '@lexfridman'</span>
+<span class="fn">YouTube</span>.<span class="fn">extract_channel_id</span>(<span class="st">'UCxxxxxx'</span>)                           <span class="cm"># 'UCxxxxxx'</span>
+
+<span class="cm"># Playlist ID</span>
+<span class="fn">YouTube</span>.<span class="fn">extract_playlist_id</span>(<span class="st">'https://youtube.com/playlist?list=PLxxx'</span>)  <span class="cm"># 'PLxxx'</span></pre>
+    </section>
+
+    <hr class="sep">
+
+    <!-- ══════════ PAGINATION ══════════ -->
+    <section id="pagination">
+      <h2><span class="marker">#</span> Pagination</h2>
+      <p class="desc">All list methods support <code>max_results</code>. Set to <code>0</code> to get everything.</p>
+
+      <table>
+        <tr>
+          <th>Method</th>
+          <th>Default</th>
+          <th>Get all</th>
+        </tr>
+        <tr>
+          <td>search()</td>
+          <td>20</td>
+          <td>max_results=0</td>
+        </tr>
+        <tr>
+          <td>get_channel_videos()</td>
+          <td>30</td>
+          <td>max_results=0</td>
+        </tr>
+        <tr>
+          <td>get_channel_streams()</td>
+          <td>0 (all)</td>
+          <td>default</td>
+        </tr>
+        <tr>
+          <td>get_channel_shorts()</td>
+          <td>0 (all)</td>
+          <td>default</td>
+        </tr>
+        <tr>
+          <td>get_comments()</td>
+          <td>20</td>
+          <td>max_results=0</td>
+        </tr>
+        <tr>
+          <td>get_playlist()</td>
+          <td>0 (all)</td>
+          <td>default</td>
+        </tr>
+        <tr>
+          <td>search_channel()</td>
+          <td>0 (all)</td>
+          <td>default</td>
+        </tr>
+      </table>
+    </section>
+
+    <!-- ══════════ SERIALIZATION ══════════ -->
+    <section id="serialization">
+      <h2><span class="marker">#</span> Serialization</h2>
+      <p class="desc">Every model has a <code>to_dict()</code> method for JSON serialization. Output is sparse: fields
+        with empty or default values are excluded.</p>
+
+      <pre><span class="kw">import</span> <span class="va">json</span>
+
+<span class="va">info</span> <span class="op">=</span> <span class="va">yt</span>.<span class="fn">get_video_info</span>(<span class="st">'dQw4w9WgXcQ'</span>)
+<span class="bi">print</span>(<span class="va">json</span>.<span class="fn">dumps</span>(<span class="va">info</span>.<span class="fn">to_dict</span>(), <span class="va">indent</span><span class="op">=</span><span class="nr">2</span>))
+
+<span class="va">comments</span> <span class="op">=</span> <span class="va">yt</span>.<span class="fn">get_comments</span>(<span class="st">'dQw4w9WgXcQ'</span>)
+<span class="bi">print</span>(<span class="va">json</span>.<span class="fn">dumps</span>(<span class="va">comments</span>.<span class="fn">to_dict</span>(), <span class="va">indent</span><span class="op">=</span><span class="nr">2</span>))</pre>
+    </section>
+
+    <section id="faq">
+      <h2><span class="marker">#</span> FAQ</h2>
+
+      <h3>Does tubescrape need a YouTube API key?</h3>
+      <p>No. tubescrape uses YouTube's internal InnerTube API, the same endpoints the YouTube website uses. No API key, no OAuth, no Google account required.</p>
+
+      <h3>How do I get all comments on a video?</h3>
+      <p>Pass <code>max_results=0</code> to fetch every comment: <code>yt.get_comments(url, max_results=0)</code>. Add <code>replies=True</code> to include replies.</p>
+
+      <h3>Can tubescrape fetch video likes and chapters?</h3>
+      <p>Yes. <code>get_video_info()</code> returns like count, comment count, subscriber count, chapters, AI-generated summary, and people mentioned. Set <code>enrich=False</code> if you only need basic metadata.</p>
+
+      <h3>Does it work with YouTube Shorts?</h3>
+      <p>Yes. Shorts appear in search results with <code>is_short=True</code>. Use <code>get_channel_shorts()</code> to fetch shorts from a channel's Shorts tab.</p>
+
+      <h3>Can I use async?</h3>
+      <p>Every method has an async variant prefixed with <code>a</code>. For example: <code>await yt.asearch()</code>, <code>await yt.aget_video_info()</code>, <code>await yt.aget_comments()</code>.</p>
+
+      <h3>How do I scrape live streams from a channel?</h3>
+      <p>Use <code>get_channel_streams()</code>. YouTube keeps live streams, past broadcasts, and scheduled streams on a separate Live tab from regular uploads.</p>
+    </section>
+
+    <footer>
+      <span>tubescrape v0.5.0 &middot; MIT License</span>
+      <a href="https://github.com/zaidkx37/tubescrape">GitHub</a>
+    </footer>
+  </main>
+
+  <script>
+    // Active nav link tracking
+    const links = document.querySelectorAll('.nav-link');
+    const sections = document.querySelectorAll('section[id], header[id], div[id]');
+
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const id = entry.target.id;
+          links.forEach(l => l.classList.remove('active'));
+          const active = document.querySelector(`.nav-link[href="#${id}"]`);
+          if (active) active.classList.add('active');
+        }
+      });
+    }, { rootMargin: '-20% 0px -70% 0px' });
+
+    sections.forEach(s => observer.observe(s));
+
+    // Close mobile sidebar on link click
+    links.forEach(l => l.addEventListener('click', () => {
+      document.querySelector('.sidebar').classList.remove('open');
+    }));
+  </script>
+</body>
+
+</html>
