@@ -11,6 +11,7 @@ class InnerTube:
     SEARCH_URL: str = 'https://www.youtube.com/youtubei/v1/search'
     BROWSE_URL: str = 'https://www.youtube.com/youtubei/v1/browse'
     PLAYER_URL: str = 'https://www.youtube.com/youtubei/v1/player'
+    NEXT_URL: str = 'https://www.youtube.com/youtubei/v1/next'
     WATCH_URL: str = 'https://www.youtube.com/watch'
 
     # Base64-encoded protobuf tab params
@@ -189,6 +190,29 @@ class InnerTube:
             'context': {'client': InnerTube.WEB_CLIENT},
             'browseId': browse_id,
         }
+
+    @staticmethod
+    def build_next_payload(
+        video_id: str | None = None,
+        continuation: str | None = None,
+    ) -> dict:
+        """Build payload for /youtubei/v1/next.
+
+        Used to fetch video engagement data (likes, comments) and
+        comment continuation pages.
+
+        Args:
+            video_id: YouTube video ID (for initial request).
+            continuation: Continuation token (for comment pages).
+        """
+        payload: dict = {
+            'context': {'client': InnerTube.WEB_CLIENT},
+        }
+        if continuation:
+            payload['continuation'] = continuation
+        elif video_id:
+            payload['videoId'] = video_id
+        return payload
 
     @staticmethod
     def build_player_payload(video_id: str) -> dict:

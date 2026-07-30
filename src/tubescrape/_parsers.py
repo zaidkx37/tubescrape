@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import suppress
 from html import unescape
 from xml.etree import ElementTree
 
@@ -7,6 +8,7 @@ from tubescrape.models import (
     ChannelPlaylistEntry,
     ChannelPlaylistsResult,
     ChannelResult,
+    Comment,
     PlaylistEntry,
     PlaylistResult,
     SearchResult,
@@ -1317,3 +1319,188 @@ class ResponseParser:
             url=f'https://www.youtube.com/watch?v={video_id}',
             thumbnails=thumbnails,
         )
+
+    # ── Video Engagement (from /next endpoint) ──
+
+    @staticmethod
+    def parse_next_engagement(data: dict) -> dict:
+        """Parse engagement data from a /next response.
+
+        Returns a dict with like_count, comment_count, subscriber_count,
+        date_text, and comments_continuation token.
+        """
+        result: dict = {}
+
+        try:
+            results = (
+                data['contents']['twoColumnWatchNextResults']
+                ['results']['results']['contents']
+            )
+        except (KeyError, TypeError):
+            return result
+
+        for item in results:
+            vpir = item.get('videoPrimaryInfoRenderer')
+            if vpir:
+                # Like count from segmented button
+                try:
+                    like_btn = (
+                        vpir['videoActions']['menuRenderer']['topLevelButtons'][0]
+                        ['segmentedLikeDislikeButtonViewModel']
+                        ['likeButtonViewModel']['likeButtonViewModel']
+                        ['toggleButtonViewModel']['toggleButtonViewModel']
+                        ['defaultButtonViewModel']['buttonViewModel']
+                    )
+                    result['like_count'] = like_btn.get('title', '')
+                except (KeyError, TypeError, IndexError):
+                    pass
+
+                # Date text
+                date_text = vpir.get('dateText', {}).get('simpleText')
+                if date_text:
+                    result['date_text'] = date_text
+
+            vsir = item.get('videoSecondaryInfoRenderer')
+            if vsir:
+                owner = vsir.get('owner', {}).get('videoOwnerRenderer', {})
+                sub_text = owner.get('subscriberCountText', {}).get('simpleText', '')
+                if sub_text:
+                    result['subscriber_count'] = sub_text
+
+        # Comment count from engagement panel
+        for panel in data.get('engagementPanels', []):
+            ep = panel.get('engagementPanelSectionListRenderer', {})
+            if 'comment' not in ep.get('panelIdentifier', ''):
+                continue
+            header = ep.get('header', {}).get('engagementPanelTitleHeaderRenderer', {})
+            runs = header.get('contextualInfo', {}).get('runs', [])
+            if runs:
+                with suppress(ValueError):
+                    result['comment_count'] = int(
+                        runs[0].get('text', '0').replace(',', '')
+                    )
+
+        # Comments continuation token from itemSectionRenderer
+        for item in results:
+            isr = item.get('itemSectionRenderer', {})
+            if isr.get('sectionIdentifier') != 'comment-item-section':
+                continue
+            for content in isr.get('contents', []):
+                cir = content.get('continuationItemRenderer', {})
+                token = (
+                    cir.get('continuationEndpoint', {})
+                    .get('continuationCommand', {})
+                    .get('token')
+                )
+                if token:
+                    result['comments_continuation'] = token
+                    break
+
+        return result
+
+    @staticmethod
+    def parse_comments_response(
+        data: dict,
+    ) -> tuple[list[Comment], int, str | None]:
+        """Parse a comments continuation response.
+
+        Returns (comments, comment_count, next_continuation_token).
+        """
+        comments: list[Comment] = []
+        comment_count = 0
+        continuation: str | None = None
+
+        # Comment count from header
+        endpoints = data.get('onResponseReceivedEndpoints', [])
+        for ep in endpoints:
+            reload = ep.get('reloadContinuationItemsCommand', {})
+            if reload.get('slot') == 'RELOAD_CONTINUATION_SLOT_HEADER':
+                for item in reload.get('continuationItems', []):
+                    header = item.get('commentsHeaderRenderer', {})
+                    count_runs = header.get('countText', {}).get('runs', [])
+                    if count_runs:
+                        with suppress(ValueError):
+                            comment_count = int(
+                                count_runs[0].get('text', '0').replace(',', '')
+                            )
+
+        # Comment entities from frameworkUpdates mutations
+        mutations = (
+            data.get('frameworkUpdates', {})
+            .get('entityBatchUpdate', {})
+            .get('mutations', [])
+        )
+        for mutation in mutations:
+            cep = mutation.get('payload', {}).get('commentEntityPayload')
+            if not cep:
+                continue
+
+            props = cep.get('properties', {})
+            author_data = cep.get('author', {})
+            toolbar = cep.get('toolbar', {})
+
+            comment_id = props.get('commentId', '')
+            if not comment_id:
+                continue
+
+            # Skip replies (replyLevel > 0) for top-level comments
+            if props.get('replyLevel', 0) > 0:
+                continue
+
+            text = props.get('content', {}).get('content', '')
+            author = author_data.get('displayName', '')
+            channel_id = author_data.get('channelId')
+
+            # Like count
+            like_str = toolbar.get('likeCountNotliked', '0')
+            try:
+                like_count = int(like_str.replace(',', ''))
+            except (ValueError, AttributeError):
+                like_count = 0
+
+            # Reply count
+            reply_str = toolbar.get('replyCount', '0')
+            try:
+                reply_count = int(reply_str.replace(',', ''))
+            except (ValueError, AttributeError):
+                reply_count = 0
+
+            is_hearted = 'heartActiveTooltip' in toolbar
+            is_verified = author_data.get('isVerified', False)
+            is_creator = author_data.get('isCreator', False)
+
+            comments.append(Comment(
+                comment_id=comment_id,
+                text=text,
+                author=author,
+                author_channel_id=channel_id,
+                like_count=like_count,
+                reply_count=reply_count,
+                published_text=props.get('publishedTime'),
+                is_hearted=is_hearted,
+                is_verified=is_verified,
+                is_creator=is_creator,
+            ))
+
+        # Next continuation token from BODY slot or append action
+        for ep in endpoints:
+            reload = ep.get('reloadContinuationItemsCommand', {})
+            if reload.get('slot') == 'RELOAD_CONTINUATION_SLOT_BODY':
+                items = reload.get('continuationItems', [])
+            else:
+                append = ep.get('appendContinuationItemsAction', {})
+                if not append:
+                    continue
+                items = append.get('continuationItems', [])
+
+            for item in items:
+                cir = item.get('continuationItemRenderer', {})
+                token = (
+                    cir.get('continuationEndpoint', {})
+                    .get('continuationCommand', {})
+                    .get('token')
+                )
+                if token:
+                    continuation = token
+
+        return comments, comment_count, continuation

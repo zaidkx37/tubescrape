@@ -9,6 +9,7 @@ from tubescrape.formatters import get_formatter
 from tubescrape.models import (
     BrowseResult,
     ChannelPlaylistsResult,
+    CommentsResult,
     PlaylistResult,
     SearchResult,
     ShortsResult,
@@ -450,6 +451,38 @@ class YouTube:
         """Async version of get_video_info."""
         video_id = URLParser.extract_video_id(video)
         return await self._transcript.aget_video_info(video_id)
+
+    # ── Comments ──
+
+    def get_comments(
+        self,
+        video: str,
+        max_results: int = 20,
+    ) -> CommentsResult:
+        """Fetch top-level comments for a video.
+
+        Accepts a video ID or full URL.
+
+        Args:
+            video: YouTube video ID or URL.
+            max_results: Maximum number of comments. Use 0 for all.
+
+        Returns:
+            CommentsResult with comment_count and list of Comment objects.
+        """
+        video_id = URLParser.extract_video_id(video)
+        return self._transcript.get_comments(video_id, max_results=max_results)
+
+    async def aget_comments(
+        self,
+        video: str,
+        max_results: int = 20,
+    ) -> CommentsResult:
+        """Async version of get_comments."""
+        video_id = URLParser.extract_video_id(video)
+        return await self._transcript.aget_comments(
+            video_id, max_results=max_results,
+        )
 
     # ── Formatting ──
 

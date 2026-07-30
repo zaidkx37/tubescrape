@@ -15,7 +15,14 @@ from tubescrape.exceptions import (
     TranscriptsNotAvailableError,
     TranslationNotAvailableError,
 )
-from tubescrape.models import Transcript, TranscriptListEntry, TranscriptSegment, VideoInfo
+from tubescrape.models import (
+    Comment,
+    CommentsResult,
+    Transcript,
+    TranscriptListEntry,
+    TranscriptSegment,
+    VideoInfo,
+)
 
 logger = logging.getLogger('tubescrape.transcript')
 
@@ -64,18 +71,19 @@ class YouTubeTranscript:
         return ResponseParser.parse_caption_tracks(caption_tracks, translation_languages)
 
     def get_video_info(self, video_id: str) -> VideoInfo | None:
-        """Fetch video metadata from InnerTube player API.
+        """Fetch video metadata from InnerTube player and next APIs.
 
-        Uses the WEB client which returns richer metadata including exact
-        publish/upload dates, category, and other microformat fields.
-        Does not require residential proxies (uses main proxy pool).
+        Combines data from the player API (title, description, dates,
+        category, etc.) with the next API (like count, comment count,
+        subscriber count).
 
         Args:
             video_id: YouTube video ID (e.g. 'dQw4w9WgXcQ').
 
         Returns:
             VideoInfo with title, channel, description, views, duration,
-            publish_date, upload_date, category, etc.
+            publish_date, upload_date, category, like_count, comment_count,
+            subscriber_count, date_text, etc.
             None if videoDetails is not available.
         """
         payload = InnerTube.build_player_web_payload(video_id)
@@ -85,7 +93,11 @@ class YouTubeTranscript:
             params={'prettyPrint': 'false'},
         )
         data = response.json()
-        return ResponseParser.parse_video_details(data)
+        info = ResponseParser.parse_video_details(data)
+        if not info:
+            return None
+
+        return self._enrich_with_next(info, video_id)
 
     async def aget_video_info(self, video_id: str) -> VideoInfo | None:
         """Async version of get_video_info."""
@@ -96,7 +108,201 @@ class YouTubeTranscript:
             params={'prettyPrint': 'false'},
         )
         data = response.json()
-        return ResponseParser.parse_video_details(data)
+        info = ResponseParser.parse_video_details(data)
+        if not info:
+            return None
+
+        return await self._aenrich_with_next(info, video_id)
+
+    def _enrich_with_next(self, info: VideoInfo, video_id: str) -> VideoInfo:
+        """Enrich VideoInfo with engagement data from the /next endpoint."""
+        import dataclasses
+        try:
+            payload = InnerTube.build_next_payload(video_id=video_id)
+            response = self._http.post(
+                InnerTube.NEXT_URL,
+                json=payload,
+                params={'prettyPrint': 'false'},
+            )
+            engagement = ResponseParser.parse_next_engagement(response.json())
+        except Exception as exc:
+            logger.warning('Failed to fetch engagement data: %s', exc)
+            return info
+
+        if engagement:
+            info = dataclasses.replace(
+                info,
+                like_count=engagement.get('like_count') or info.like_count,
+                comment_count=engagement.get('comment_count', info.comment_count),
+                subscriber_count=engagement.get('subscriber_count') or info.subscriber_count,
+                date_text=engagement.get('date_text') or info.date_text,
+            )
+        return info
+
+    async def _aenrich_with_next(self, info: VideoInfo, video_id: str) -> VideoInfo:
+        """Async version of _enrich_with_next."""
+        import dataclasses
+        try:
+            payload = InnerTube.build_next_payload(video_id=video_id)
+            response = await self._http.apost(
+                InnerTube.NEXT_URL,
+                json=payload,
+                params={'prettyPrint': 'false'},
+            )
+            engagement = ResponseParser.parse_next_engagement(response.json())
+        except Exception as exc:
+            logger.warning('Failed to fetch engagement data: %s', exc)
+            return info
+
+        if engagement:
+            info = dataclasses.replace(
+                info,
+                like_count=engagement.get('like_count') or info.like_count,
+                comment_count=engagement.get('comment_count', info.comment_count),
+                subscriber_count=engagement.get('subscriber_count') or info.subscriber_count,
+                date_text=engagement.get('date_text') or info.date_text,
+            )
+        return info
+
+    # ── Comments ──
+
+    def get_comments(
+        self, video_id: str, max_results: int = 20,
+    ) -> CommentsResult:
+        """Fetch top-level comments for a video.
+
+        Args:
+            video_id: YouTube video ID.
+            max_results: Maximum number of comments. Use 0 for all.
+
+        Returns:
+            CommentsResult with comment_count and list of Comment objects.
+        """
+        # First get the comments continuation token from /next
+        payload = InnerTube.build_next_payload(video_id=video_id)
+        response = self._http.post(
+            InnerTube.NEXT_URL,
+            json=payload,
+            params={'prettyPrint': 'false'},
+        )
+        engagement = ResponseParser.parse_next_engagement(response.json())
+        cont_token = engagement.get('comments_continuation')
+        comment_count = engagement.get('comment_count', 0)
+
+        if not cont_token:
+            return CommentsResult(video_id=video_id, comment_count=comment_count)
+
+        all_comments: list[Comment] = []
+
+        # Fetch comments via continuation
+        payload = InnerTube.build_next_payload(continuation=cont_token)
+        response = self._http.post(
+            InnerTube.NEXT_URL,
+            json=payload,
+            params={'prettyPrint': 'false'},
+        )
+        comments, count_from_header, continuation = ResponseParser.parse_comments_response(
+            response.json(),
+        )
+        if count_from_header:
+            comment_count = count_from_header
+        all_comments.extend(comments)
+
+        while continuation:
+            if max_results > 0 and len(all_comments) >= max_results:
+                all_comments = all_comments[:max_results]
+                break
+
+            payload = InnerTube.build_next_payload(continuation=continuation)
+            try:
+                response = self._http.post(
+                    InnerTube.NEXT_URL,
+                    json=payload,
+                    params={'prettyPrint': 'false'},
+                )
+                comments, _, continuation = ResponseParser.parse_comments_response(
+                    response.json(),
+                )
+            except Exception as exc:
+                logger.warning('Comments continuation failed: %s', exc)
+                break
+
+            if not comments:
+                break
+            all_comments.extend(comments)
+
+        if max_results > 0:
+            all_comments = all_comments[:max_results]
+
+        return CommentsResult(
+            video_id=video_id,
+            comment_count=comment_count,
+            comments=all_comments,
+        )
+
+    async def aget_comments(
+        self, video_id: str, max_results: int = 20,
+    ) -> CommentsResult:
+        """Async version of get_comments."""
+        payload = InnerTube.build_next_payload(video_id=video_id)
+        response = await self._http.apost(
+            InnerTube.NEXT_URL,
+            json=payload,
+            params={'prettyPrint': 'false'},
+        )
+        engagement = ResponseParser.parse_next_engagement(response.json())
+        cont_token = engagement.get('comments_continuation')
+        comment_count = engagement.get('comment_count', 0)
+
+        if not cont_token:
+            return CommentsResult(video_id=video_id, comment_count=comment_count)
+
+        all_comments: list[Comment] = []
+
+        payload = InnerTube.build_next_payload(continuation=cont_token)
+        response = await self._http.apost(
+            InnerTube.NEXT_URL,
+            json=payload,
+            params={'prettyPrint': 'false'},
+        )
+        comments, count_from_header, continuation = ResponseParser.parse_comments_response(
+            response.json(),
+        )
+        if count_from_header:
+            comment_count = count_from_header
+        all_comments.extend(comments)
+
+        while continuation:
+            if max_results > 0 and len(all_comments) >= max_results:
+                all_comments = all_comments[:max_results]
+                break
+
+            payload = InnerTube.build_next_payload(continuation=continuation)
+            try:
+                response = await self._http.apost(
+                    InnerTube.NEXT_URL,
+                    json=payload,
+                    params={'prettyPrint': 'false'},
+                )
+                comments, _, continuation = ResponseParser.parse_comments_response(
+                    response.json(),
+                )
+            except Exception as exc:
+                logger.warning('Comments continuation failed: %s', exc)
+                break
+
+            if not comments:
+                break
+            all_comments.extend(comments)
+
+        if max_results > 0:
+            all_comments = all_comments[:max_results]
+
+        return CommentsResult(
+            video_id=video_id,
+            comment_count=comment_count,
+            comments=all_comments,
+        )
 
     def get_transcript(
         self,

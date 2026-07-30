@@ -37,6 +37,8 @@ from tubescrape.models import (
     ChannelPlaylistEntry,
     ChannelPlaylistsResult,
     ChannelResult,
+    Comment,
+    CommentsResult,
     PlaylistEntry,
     PlaylistResult,
     SearchResult,
@@ -51,7 +53,7 @@ from tubescrape.models import (
     VideoResult,
 )
 
-__version__ = '0.4.1'
+__version__ = '0.5.0'
 
 __all__ = [
     # Client
@@ -61,6 +63,8 @@ __all__ = [
     'ChannelPlaylistEntry',
     'ChannelPlaylistsResult',
     'ChannelResult',
+    'Comment',
+    'CommentsResult',
     'PlaylistEntry',
     'PlaylistResult',
     'SearchResult',

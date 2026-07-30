@@ -238,6 +238,10 @@ class VideoInfo:
     publish_date: str | None = None
     upload_date: str | None = None
     category: str | None = None
+    like_count: str | None = None
+    comment_count: int | None = None
+    subscriber_count: str | None = None
+    date_text: str | None = None
     is_family_safe: bool | None = None
     is_unlisted: bool | None = None
     owner_url: str | None = None
@@ -265,6 +269,14 @@ class VideoInfo:
             'is_live': self.is_live,
             'is_private': self.is_private,
         }
+        if self.like_count is not None:
+            result['like_count'] = self.like_count
+        if self.comment_count is not None:
+            result['comment_count'] = self.comment_count
+        if self.subscriber_count is not None:
+            result['subscriber_count'] = self.subscriber_count
+        if self.date_text is not None:
+            result['date_text'] = self.date_text
         if self.publish_date is not None:
             result['publish_date'] = self.publish_date
         if self.upload_date is not None:
@@ -530,4 +542,58 @@ class PlaylistResult:
             'channel': self.channel,
             'videos': [v.to_dict() for v in self.videos],
             'url': self.url,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class Comment:
+    """A single YouTube comment."""
+
+    comment_id: str
+    text: str
+    author: str
+    author_channel_id: str | None = None
+    like_count: int = 0
+    reply_count: int = 0
+    published_text: str | None = None
+    is_hearted: bool = False
+    is_verified: bool = False
+    is_creator: bool = False
+
+    def to_dict(self) -> dict:
+        result: dict = {
+            'comment_id': self.comment_id,
+            'text': self.text,
+            'author': self.author,
+        }
+        if self.author_channel_id is not None:
+            result['author_channel_id'] = self.author_channel_id
+        if self.like_count:
+            result['like_count'] = self.like_count
+        if self.reply_count:
+            result['reply_count'] = self.reply_count
+        if self.published_text is not None:
+            result['published_text'] = self.published_text
+        if self.is_hearted:
+            result['is_hearted'] = self.is_hearted
+        if self.is_verified:
+            result['is_verified'] = self.is_verified
+        if self.is_creator:
+            result['is_creator'] = self.is_creator
+        return result
+
+
+@dataclass(frozen=True, slots=True)
+class CommentsResult:
+    """Results from fetching YouTube video comments."""
+
+    video_id: str
+    comment_count: int = 0
+    comments: list[Comment] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        return {
+            'video_id': self.video_id,
+            'comment_count': self.comment_count,
+            'comments': [c.to_dict() for c in self.comments],
         }
