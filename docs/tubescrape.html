@@ -634,6 +634,70 @@
       }
     }
 
+    /* ── FAQ ACCORDION ── */
+    .faq-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 20px;
+    }
+
+    .faq-list details {
+      background: var(--bg-raised);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      transition: border-color 0.2s;
+    }
+
+    .faq-list details[open] {
+      border-color: var(--border-accent);
+    }
+
+    .faq-list summary {
+      padding: 16px 20px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.88rem;
+      color: var(--text);
+      list-style: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      user-select: none;
+    }
+
+    .faq-list summary::-webkit-details-marker { display: none; }
+
+    .faq-list summary::after {
+      content: '+';
+      font-family: var(--font-mono);
+      font-size: 1rem;
+      color: var(--text-dim);
+      flex-shrink: 0;
+      transition: transform 0.2s;
+    }
+
+    .faq-list details[open] summary::after {
+      content: '\2212';
+      color: var(--accent);
+    }
+
+    .faq-list .faq-answer {
+      padding: 0 20px 16px;
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      line-height: 1.65;
+    }
+
+    .faq-list .faq-answer code {
+      background: var(--bg-code-inline);
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 0.82em;
+      color: var(--orange);
+    }
+
     /* ── FOOTER ── */
     footer {
       border-top: 1px solid var(--border);
@@ -1359,24 +1423,39 @@
 
     <section id="faq">
       <h2><span class="marker">#</span> FAQ</h2>
+      <p class="desc">Common questions about tubescrape.</p>
 
-      <h3>Does tubescrape need a YouTube API key?</h3>
-      <p>No. tubescrape uses YouTube's internal InnerTube API, the same endpoints the YouTube website uses. No API key, no OAuth, no Google account required.</p>
+      <div class="faq-list">
+        <details>
+          <summary>Does tubescrape need a YouTube API key?</summary>
+          <div class="faq-answer">No. tubescrape uses YouTube's internal InnerTube API, the same endpoints the YouTube website uses. No API key, no OAuth, no Google account required.</div>
+        </details>
 
-      <h3>How do I get all comments on a video?</h3>
-      <p>Pass <code>max_results=0</code> to fetch every comment: <code>yt.get_comments(url, max_results=0)</code>. Add <code>replies=True</code> to include replies.</p>
+        <details>
+          <summary>How do I get all comments on a video?</summary>
+          <div class="faq-answer">Pass <code>max_results=0</code> to fetch every comment: <code>yt.get_comments(url, max_results=0)</code>. Add <code>replies=True</code> to include replies.</div>
+        </details>
 
-      <h3>Can tubescrape fetch video likes and chapters?</h3>
-      <p>Yes. <code>get_video_info()</code> returns like count, comment count, subscriber count, chapters, AI-generated summary, and people mentioned. Set <code>enrich=False</code> if you only need basic metadata.</p>
+        <details>
+          <summary>Can tubescrape fetch video likes and chapters?</summary>
+          <div class="faq-answer">Yes. <code>get_video_info()</code> returns like count, comment count, subscriber count, chapters, AI-generated summary, and people mentioned. Set <code>enrich=False</code> if you only need basic metadata.</div>
+        </details>
 
-      <h3>Does it work with YouTube Shorts?</h3>
-      <p>Yes. Shorts appear in search results with <code>is_short=True</code>. Use <code>get_channel_shorts()</code> to fetch shorts from a channel's Shorts tab.</p>
+        <details>
+          <summary>Does tubescrape work with YouTube Shorts?</summary>
+          <div class="faq-answer">Yes. Shorts appear in search results with <code>is_short=True</code>. Use <code>get_channel_shorts()</code> to fetch shorts from a channel's Shorts tab.</div>
+        </details>
 
-      <h3>Can I use async?</h3>
-      <p>Every method has an async variant prefixed with <code>a</code>. For example: <code>await yt.asearch()</code>, <code>await yt.aget_video_info()</code>, <code>await yt.aget_comments()</code>.</p>
+        <details>
+          <summary>Can I use tubescrape with async Python?</summary>
+          <div class="faq-answer">Every method has an async variant prefixed with <code>a</code>. For example: <code>await yt.asearch()</code>, <code>await yt.aget_video_info()</code>, <code>await yt.aget_comments()</code>.</div>
+        </details>
 
-      <h3>How do I scrape live streams from a channel?</h3>
-      <p>Use <code>get_channel_streams()</code>. YouTube keeps live streams, past broadcasts, and scheduled streams on a separate Live tab from regular uploads.</p>
+        <details>
+          <summary>How do I scrape live streams from a YouTube channel?</summary>
+          <div class="faq-answer">Use <code>get_channel_streams()</code>. YouTube keeps live streams, past broadcasts, and scheduled streams on a separate Live tab from regular uploads.</div>
+        </details>
+      </div>
     </section>
 
     <footer>
