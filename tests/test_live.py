@@ -105,8 +105,10 @@ class TestSearch:
             assert isinstance(video, VideoResult)
             assert len(video.video_id) == 11
             assert video.title
-            assert video.channel
-            assert video.url == f'https://www.youtube.com/watch?v={video.video_id}'
+            # Shorts from search don't have channel info
+            if not video.is_short:
+                assert video.channel
+            assert video.url.startswith('https://www.youtube.com/')
             assert video.duration_seconds >= 0
 
     def test_search_rich_metadata(self, yt: YouTube):

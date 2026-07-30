@@ -1,14 +1,20 @@
 from __future__ import annotations
 
+import json
+import re
 from contextlib import suppress
 from html import unescape
 from xml.etree import ElementTree
 
 from tubescrape.models import (
+    ChannelAbout,
+    ChannelLink,
     ChannelPlaylistEntry,
     ChannelPlaylistsResult,
     ChannelResult,
+    Chapter,
     Comment,
+    PersonMentioned,
     PlaylistEntry,
     PlaylistResult,
     SearchResult,
@@ -446,6 +452,72 @@ class ResponseParser:
             return title
 
         return None
+
+    @staticmethod
+    def parse_channel_about(html: str, channel_id: str) -> ChannelAbout:
+        """Extract channel about data from the /about page HTML.
+
+        Finds the aboutChannelViewModel JSON embedded in the page and
+        parses it into a ChannelAbout object.
+        """
+        marker = '"aboutChannelViewModel":'
+        idx = html.find(marker)
+        if idx == -1:
+            return ChannelAbout(channel_id=channel_id)
+
+        start = idx + len(marker)
+        brace_count = 0
+        obj_end = start
+        for i, c in enumerate(html[start:], start):
+            if c == '{':
+                brace_count += 1
+            elif c == '}':
+                brace_count -= 1
+            if brace_count == 0 and i > start:
+                obj_end = i + 1
+                break
+
+        try:
+            obj = json.loads(html[start:obj_end])
+        except (ValueError, json.JSONDecodeError):
+            return ChannelAbout(channel_id=channel_id)
+
+        # Extract title from channelMetadataRenderer in the same page
+        title = ''
+        title_match = re.search(
+            r'"channelMetadataRenderer":\{"title":"([^"]+)"',
+            html,
+        )
+        if title_match:
+            title = title_match.group(1)
+
+        # Parse links
+        links: list[ChannelLink] = []
+        for link_item in obj.get('links', []):
+            lvm = link_item.get('channelExternalLinkViewModel', {})
+            link_title = lvm.get('title', {}).get('content', '')
+            link_url = lvm.get('link', {}).get('content', '')
+            if link_title and link_url:
+                links.append(ChannelLink(title=link_title, url=link_url))
+
+        # Parse joined date (strip "Joined " prefix)
+        joined_raw = obj.get('joinedDateText', {})
+        if isinstance(joined_raw, dict):
+            joined_raw = joined_raw.get('content', '')
+        joined_date = joined_raw.removeprefix('Joined ').strip() if joined_raw else None
+
+        return ChannelAbout(
+            channel_id=obj.get('channelId', channel_id),
+            title=title,
+            description=obj.get('description', ''),
+            country=obj.get('country') or None,
+            subscriber_count=obj.get('subscriberCountText') or None,
+            view_count=obj.get('viewCountText') or None,
+            video_count=obj.get('videoCountText') or None,
+            joined_date=joined_date or None,
+            canonical_url=obj.get('canonicalChannelUrl') or None,
+            links=links,
+        )
 
     @staticmethod
     def parse_browse_first_page(
@@ -1396,17 +1468,94 @@ class ResponseParser:
                     result['comments_continuation'] = token
                     break
 
+        # Chapters from engagement panel
+        chapters: list[Chapter] = []
+        for panel in data.get('engagementPanels', []):
+            ep = panel.get('engagementPanelSectionListRenderer', {})
+            if 'chapters' not in ep.get('panelIdentifier', ''):
+                continue
+            mlr = ep.get('content', {}).get('macroMarkersListRenderer', {})
+            for item in mlr.get('contents', []):
+                mr = item.get('macroMarkersListItemRenderer', {})
+                title = mr.get('title', {}).get('simpleText', '')
+                time_desc = mr.get('timeDescription', {}).get('simpleText', '')
+                on_tap = mr.get('onTap', {})
+                we = on_tap.get('watchEndpoint', {})
+                if not we:
+                    we = (
+                        on_tap.get('innertubeCommand', {})
+                        .get('watchEndpoint', {})
+                    )
+                start_secs = we.get('startTimeSeconds', 0)
+                if title:
+                    chapters.append(Chapter(
+                        title=title,
+                        time_description=time_desc,
+                        start_seconds=start_secs,
+                    ))
+            break
+        if chapters:
+            result['chapters'] = chapters
+
+        # AI summary and people mentioned from structured description
+        for panel in data.get('engagementPanels', []):
+            ep = panel.get('engagementPanelSectionListRenderer', {})
+            if ep.get('panelIdentifier') != 'engagement-panel-structured-description':
+                continue
+            items = (
+                ep.get('content', {})
+                .get('structuredDescriptionContentRenderer', {})
+                .get('items', [])
+            )
+            for desc_item in items:
+                # AI Summary
+                emr = desc_item.get('expandableMetadataRenderer')
+                if emr:
+                    expanded = emr.get('expandedContent', {})
+                    summary_vm = expanded.get('videoSummaryContentViewModel', {})
+                    paragraphs = summary_vm.get('paragraphs', [])
+                    texts = []
+                    for p in paragraphs:
+                        pvm = p.get('videoSummaryParagraphViewModel', {})
+                        text = pvm.get('text', {}).get('content', '')
+                        if text:
+                            texts.append(text)
+                    if texts:
+                        result['ai_summary'] = ' '.join(texts)
+
+                # People mentioned
+                vasvm = desc_item.get('videoAttributesSectionViewModel')
+                if vasvm:
+                    people: list[PersonMentioned] = []
+                    for attr in vasvm.get('videoAttributeViewModels', []):
+                        vm = attr.get('videoAttributeViewModel', {})
+                        name = vm.get('title', '')
+                        subtitle = vm.get('subtitle', '')
+                        sources = vm.get('image', {}).get('sources', [])
+                        img_url = sources[0].get('url') if sources else None
+                        if name:
+                            people.append(PersonMentioned(
+                                name=name,
+                                description=subtitle or None,
+                                image_url=img_url,
+                            ))
+                    if people:
+                        result['people_mentioned'] = people
+            break
+
         return result
 
     @staticmethod
     def parse_comments_response(
         data: dict,
-    ) -> tuple[list[Comment], int, str | None]:
+    ) -> tuple[list[Comment], dict[str, str], int, str | None]:
         """Parse a comments continuation response.
 
-        Returns (comments, comment_count, next_continuation_token).
+        Returns (comments, reply_tokens, comment_count, next_continuation_token).
+        reply_tokens maps comment_id to its reply continuation token.
         """
         comments: list[Comment] = []
+        reply_tokens: dict[str, str] = {}
         comment_count = 0
         continuation: str | None = None
 
@@ -1424,6 +1573,36 @@ class ResponseParser:
                                 count_runs[0].get('text', '0').replace(',', '')
                             )
 
+        # Extract reply continuation tokens from commentThreadRenderers
+        for ep in endpoints:
+            reload = ep.get('reloadContinuationItemsCommand', {})
+            if reload.get('slot') == 'RELOAD_CONTINUATION_SLOT_BODY':
+                items = reload.get('continuationItems', [])
+            else:
+                append = ep.get('appendContinuationItemsAction', {})
+                if not append:
+                    continue
+                items = append.get('continuationItems', [])
+
+            for item in items:
+                ctr = item.get('commentThreadRenderer', {})
+                if not ctr:
+                    continue
+                # Get comment ID from commentViewModel
+                cvm = ctr.get('commentViewModel', {}).get('commentViewModel', {})
+                cid = cvm.get('commentId', '')
+                # Get reply token
+                replies = ctr.get('replies', {}).get('commentRepliesRenderer', {})
+                for rc in replies.get('contents', []):
+                    cir = rc.get('continuationItemRenderer', {})
+                    token = (
+                        cir.get('continuationEndpoint', {})
+                        .get('continuationCommand', {})
+                        .get('token')
+                    )
+                    if token and cid:
+                        reply_tokens[cid] = token
+
         # Comment entities from frameworkUpdates mutations
         mutations = (
             data.get('frameworkUpdates', {})
@@ -1431,58 +1610,11 @@ class ResponseParser:
             .get('mutations', [])
         )
         for mutation in mutations:
-            cep = mutation.get('payload', {}).get('commentEntityPayload')
-            if not cep:
-                continue
+            comment = ResponseParser._parse_comment_mutation(mutation)
+            if comment:
+                comments.append(comment)
 
-            props = cep.get('properties', {})
-            author_data = cep.get('author', {})
-            toolbar = cep.get('toolbar', {})
-
-            comment_id = props.get('commentId', '')
-            if not comment_id:
-                continue
-
-            # Skip replies (replyLevel > 0) for top-level comments
-            if props.get('replyLevel', 0) > 0:
-                continue
-
-            text = props.get('content', {}).get('content', '')
-            author = author_data.get('displayName', '')
-            channel_id = author_data.get('channelId')
-
-            # Like count
-            like_str = toolbar.get('likeCountNotliked', '0')
-            try:
-                like_count = int(like_str.replace(',', ''))
-            except (ValueError, AttributeError):
-                like_count = 0
-
-            # Reply count
-            reply_str = toolbar.get('replyCount', '0')
-            try:
-                reply_count = int(reply_str.replace(',', ''))
-            except (ValueError, AttributeError):
-                reply_count = 0
-
-            is_hearted = 'heartActiveTooltip' in toolbar
-            is_verified = author_data.get('isVerified', False)
-            is_creator = author_data.get('isCreator', False)
-
-            comments.append(Comment(
-                comment_id=comment_id,
-                text=text,
-                author=author,
-                author_channel_id=channel_id,
-                like_count=like_count,
-                reply_count=reply_count,
-                published_text=props.get('publishedTime'),
-                is_hearted=is_hearted,
-                is_verified=is_verified,
-                is_creator=is_creator,
-            ))
-
-        # Next continuation token from BODY slot or append action
+        # Next continuation token
         for ep in endpoints:
             reload = ep.get('reloadContinuationItemsCommand', {})
             if reload.get('slot') == 'RELOAD_CONTINUATION_SLOT_BODY':
@@ -1503,4 +1635,75 @@ class ResponseParser:
                 if token:
                     continuation = token
 
-        return comments, comment_count, continuation
+        return comments, reply_tokens, comment_count, continuation
+
+    @staticmethod
+    def parse_replies_response(data: dict) -> list[Comment]:
+        """Parse a comment replies continuation response.
+
+        Returns list of reply Comment objects.
+        """
+        replies: list[Comment] = []
+        mutations = (
+            data.get('frameworkUpdates', {})
+            .get('entityBatchUpdate', {})
+            .get('mutations', [])
+        )
+        for mutation in mutations:
+            comment = ResponseParser._parse_comment_mutation(mutation, include_replies=True)
+            if comment:
+                replies.append(comment)
+        return replies
+
+    @staticmethod
+    def _parse_comment_mutation(
+        mutation: dict, include_replies: bool = False,
+    ) -> Comment | None:
+        """Parse a single comment entity mutation into a Comment."""
+        cep = mutation.get('payload', {}).get('commentEntityPayload')
+        if not cep:
+            return None
+
+        props = cep.get('properties', {})
+        author_data = cep.get('author', {})
+        toolbar = cep.get('toolbar', {})
+
+        comment_id = props.get('commentId', '')
+        if not comment_id:
+            return None
+
+        reply_level = props.get('replyLevel', 0)
+        # For top-level parsing, skip replies; for reply parsing, skip top-level
+        if include_replies and reply_level == 0:
+            return None
+        if not include_replies and reply_level > 0:
+            return None
+
+        text = props.get('content', {}).get('content', '')
+        author = author_data.get('displayName', '')
+        channel_id = author_data.get('channelId')
+
+        like_str = toolbar.get('likeCountNotliked', '0')
+        try:
+            like_count = int(like_str.replace(',', '')) if like_str.strip() else 0
+        except (ValueError, AttributeError):
+            like_count = 0
+
+        reply_str = toolbar.get('replyCount', '0')
+        try:
+            reply_count = int(reply_str.replace(',', '')) if reply_str.strip() else 0
+        except (ValueError, AttributeError):
+            reply_count = 0
+
+        return Comment(
+            comment_id=comment_id,
+            text=text,
+            author=author,
+            author_channel_id=channel_id,
+            like_count=like_count,
+            reply_count=reply_count,
+            published_text=props.get('publishedTime'),
+            is_hearted='heartActiveTooltip' in toolbar,
+            is_verified=author_data.get('isVerified', False),
+            is_creator=author_data.get('isCreator', False),
+        )

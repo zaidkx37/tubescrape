@@ -8,6 +8,7 @@ from tubescrape.browse import YouTubeBrowse
 from tubescrape.formatters import get_formatter
 from tubescrape.models import (
     BrowseResult,
+    ChannelAbout,
     ChannelPlaylistsResult,
     CommentsResult,
     PlaylistResult,
@@ -284,6 +285,41 @@ class YouTube:
         channel_id = await self._aresolve_channel(channel)
         return await self._browse.aget_channel_playlists(channel_id)
 
+    # ── Channel About ──
+
+    def get_channel_about(self, channel: str) -> ChannelAbout:
+        """Get channel about/info page data.
+
+        Fetches the channel's about page to get description, country,
+        join date, total views, external links, and other metadata.
+
+        Accepts a channel ID, full URL, or @handle.
+
+        Args:
+            channel: Channel ID (UC...), @handle, or full YouTube channel URL.
+
+        Returns:
+            ChannelAbout with description, country, links, stats, etc.
+        """
+        original = channel
+        resolved = URLParser.extract_channel_id(channel)
+        # If it's a @handle, pass it directly for a cleaner URL
+        handle = None
+        if original.startswith('@') or (resolved and resolved.startswith('@')):
+            handle = resolved or original
+        channel_id = self._resolve_channel(channel)
+        return self._browse.get_channel_about(channel_id, handle=handle)
+
+    async def aget_channel_about(self, channel: str) -> ChannelAbout:
+        """Async version of get_channel_about."""
+        original = channel
+        resolved = URLParser.extract_channel_id(channel)
+        handle = None
+        if original.startswith('@') or (resolved and resolved.startswith('@')):
+            handle = resolved or original
+        channel_id = await self._aresolve_channel(channel)
+        return await self._browse.aget_channel_about(channel_id, handle=handle)
+
     # ── Channel Search ──
 
     def search_channel(
@@ -432,25 +468,36 @@ class YouTube:
         video_id = URLParser.extract_video_id(video)
         return await self._transcript.alist_transcripts(video_id)
 
-    def get_video_info(self, video: str) -> VideoInfo | None:
+    def get_video_info(
+        self,
+        video: str,
+        enrich: bool = True,
+    ) -> VideoInfo | None:
         """Fetch video metadata from InnerTube player API.
 
-        Uses the main proxy pool (datacenter proxies work fine).
         Accepts a video ID or full URL.
 
         Args:
             video: YouTube video ID or URL.
+            enrich: If True (default), make a second API call to fetch
+                    like_count, comment_count, subscriber_count, chapters,
+                    ai_summary, and people_mentioned. Set to False for a
+                    faster single-request call with only basic metadata.
 
         Returns:
             VideoInfo with title, channel, description, views, duration, etc.
         """
         video_id = URLParser.extract_video_id(video)
-        return self._transcript.get_video_info(video_id)
+        return self._transcript.get_video_info(video_id, enrich=enrich)
 
-    async def aget_video_info(self, video: str) -> VideoInfo | None:
+    async def aget_video_info(
+        self,
+        video: str,
+        enrich: bool = True,
+    ) -> VideoInfo | None:
         """Async version of get_video_info."""
         video_id = URLParser.extract_video_id(video)
-        return await self._transcript.aget_video_info(video_id)
+        return await self._transcript.aget_video_info(video_id, enrich=enrich)
 
     # ── Comments ──
 
@@ -458,6 +505,7 @@ class YouTube:
         self,
         video: str,
         max_results: int = 20,
+        replies: bool = False,
     ) -> CommentsResult:
         """Fetch top-level comments for a video.
 
@@ -466,22 +514,27 @@ class YouTube:
         Args:
             video: YouTube video ID or URL.
             max_results: Maximum number of comments. Use 0 for all.
+            replies: If True, fetch replies for each comment. Default False.
+                     Each comment with replies triggers one extra API call.
 
         Returns:
             CommentsResult with comment_count and list of Comment objects.
         """
         video_id = URLParser.extract_video_id(video)
-        return self._transcript.get_comments(video_id, max_results=max_results)
+        return self._transcript.get_comments(
+            video_id, max_results=max_results, replies=replies,
+        )
 
     async def aget_comments(
         self,
         video: str,
         max_results: int = 20,
+        replies: bool = False,
     ) -> CommentsResult:
         """Async version of get_comments."""
         video_id = URLParser.extract_video_id(video)
         return await self._transcript.aget_comments(
-            video_id, max_results=max_results,
+            video_id, max_results=max_results, replies=replies,
         )
 
     # ── Formatting ──

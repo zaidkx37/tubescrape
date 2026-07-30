@@ -221,8 +221,41 @@ class Transcript:
 
 
 @dataclass(frozen=True, slots=True)
+class Chapter:
+    """A single chapter/timestamp in a video."""
+
+    title: str
+    time_description: str
+    start_seconds: int
+
+    def to_dict(self) -> dict:
+        return {
+            'title': self.title,
+            'time': self.time_description,
+            'start_seconds': self.start_seconds,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class PersonMentioned:
+    """A person mentioned in a video (from YouTube's knowledge panel)."""
+
+    name: str
+    description: str | None = None
+    image_url: str | None = None
+
+    def to_dict(self) -> dict:
+        result: dict = {'name': self.name}
+        if self.description is not None:
+            result['description'] = self.description
+        if self.image_url is not None:
+            result['image_url'] = self.image_url
+        return result
+
+
+@dataclass(frozen=True, slots=True)
 class VideoInfo:
-    """Video metadata from InnerTube player API."""
+    """Video metadata from InnerTube player and next APIs."""
 
     video_id: str
     title: str
@@ -242,6 +275,9 @@ class VideoInfo:
     comment_count: int | None = None
     subscriber_count: str | None = None
     date_text: str | None = None
+    ai_summary: str | None = None
+    chapters: list[Chapter] = field(default_factory=list, repr=False)
+    people_mentioned: list[PersonMentioned] = field(default_factory=list, repr=False)
     is_family_safe: bool | None = None
     is_unlisted: bool | None = None
     owner_url: str | None = None
@@ -261,13 +297,9 @@ class VideoInfo:
             'channel': self.channel,
             'channel_id': self.channel_id,
             'description': self.description,
+            'url': self.url,
             'view_count': self.view_count,
             'duration_seconds': self.duration_seconds,
-            'thumbnail': self.thumbnail,
-            'thumbnails': [t.to_dict() for t in self.thumbnails],
-            'keywords': self.keywords,
-            'is_live': self.is_live,
-            'is_private': self.is_private,
         }
         if self.like_count is not None:
             result['like_count'] = self.like_count
@@ -283,6 +315,17 @@ class VideoInfo:
             result['upload_date'] = self.upload_date
         if self.category is not None:
             result['category'] = self.category
+        result['thumbnail'] = self.thumbnail
+        result['thumbnails'] = [t.to_dict() for t in self.thumbnails]
+        result['keywords'] = self.keywords
+        result['is_live'] = self.is_live
+        result['is_private'] = self.is_private
+        if self.ai_summary is not None:
+            result['ai_summary'] = self.ai_summary
+        if self.chapters:
+            result['chapters'] = [c.to_dict() for c in self.chapters]
+        if self.people_mentioned:
+            result['people_mentioned'] = [p.to_dict() for p in self.people_mentioned]
         if self.is_family_safe is not None:
             result['is_family_safe'] = self.is_family_safe
         if self.is_unlisted is not None:
@@ -450,6 +493,55 @@ class ShortsResult:
 
 
 @dataclass(frozen=True, slots=True)
+class ChannelLink:
+    """An external link from a channel's about page."""
+
+    title: str
+    url: str
+
+    def to_dict(self) -> dict:
+        return {'title': self.title, 'url': self.url}
+
+
+@dataclass(frozen=True, slots=True)
+class ChannelAbout:
+    """Channel about/info page data."""
+
+    channel_id: str
+    title: str = ''
+    description: str = ''
+    country: str | None = None
+    subscriber_count: str | None = None
+    view_count: str | None = None
+    video_count: str | None = None
+    joined_date: str | None = None
+    canonical_url: str | None = None
+    links: list[ChannelLink] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        result: dict = {
+            'channel_id': self.channel_id,
+            'title': self.title,
+            'description': self.description,
+        }
+        if self.country is not None:
+            result['country'] = self.country
+        if self.subscriber_count is not None:
+            result['subscriber_count'] = self.subscriber_count
+        if self.view_count is not None:
+            result['view_count'] = self.view_count
+        if self.video_count is not None:
+            result['video_count'] = self.video_count
+        if self.joined_date is not None:
+            result['joined_date'] = self.joined_date
+        if self.canonical_url is not None:
+            result['canonical_url'] = self.canonical_url
+        if self.links:
+            result['links'] = [link.to_dict() for link in self.links]
+        return result
+
+
+@dataclass(frozen=True, slots=True)
 class ChannelPlaylistEntry:
     """A playlist from a channel's Playlists tab."""
 
@@ -559,6 +651,7 @@ class Comment:
     is_hearted: bool = False
     is_verified: bool = False
     is_creator: bool = False
+    replies: list[Comment] = field(default_factory=list, repr=False)
 
     def to_dict(self) -> dict:
         result: dict = {
@@ -580,6 +673,8 @@ class Comment:
             result['is_verified'] = self.is_verified
         if self.is_creator:
             result['is_creator'] = self.is_creator
+        if self.replies:
+            result['replies'] = [r.to_dict() for r in self.replies]
         return result
 
 

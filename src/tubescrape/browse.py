@@ -10,6 +10,7 @@ from tubescrape._parsers import ResponseParser
 from tubescrape.exceptions import ChannelNotFoundError
 from tubescrape.models import (
     BrowseResult,
+    ChannelAbout,
     ChannelPlaylistsResult,
     SearchResult,
     ShortsResult,
@@ -438,6 +439,53 @@ class YouTubeBrowse:
         )
         data = response.json()
         return ResponseParser.parse_channel_playlists_tab(data, channel_id)
+
+    # ── Channel About ──
+
+    def get_channel_about(self, channel_id: str, handle: str | None = None) -> ChannelAbout:
+        """Get channel about/info page data.
+
+        Fetches the channel's /about HTML page and extracts the
+        aboutChannelViewModel data (description, country, links, etc.).
+
+        Args:
+            channel_id: YouTube channel ID (UC...).
+            handle: Optional @handle or vanity URL for the page fetch.
+                    If not provided, uses the channel ID URL.
+
+        Returns:
+            ChannelAbout with description, country, links, stats, etc.
+        """
+        if handle:
+            if handle.startswith('@'):
+                url = f'https://www.youtube.com/{handle}/about'
+            else:
+                url = f'https://www.youtube.com/channel/{channel_id}/about'
+        else:
+            url = f'https://www.youtube.com/channel/{channel_id}/about'
+
+        response = self._http.get(url)
+        result = ResponseParser.parse_channel_about(response.text, channel_id)
+        logger.info(
+            'About: %s (%s), %d links',
+            channel_id, result.country or 'no country', len(result.links),
+        )
+        return result
+
+    async def aget_channel_about(
+        self, channel_id: str, handle: str | None = None,
+    ) -> ChannelAbout:
+        """Async version of get_channel_about."""
+        if handle:
+            if handle.startswith('@'):
+                url = f'https://www.youtube.com/{handle}/about'
+            else:
+                url = f'https://www.youtube.com/channel/{channel_id}/about'
+        else:
+            url = f'https://www.youtube.com/channel/{channel_id}/about'
+
+        response = await self._http.aget(url)
+        return ResponseParser.parse_channel_about(response.text, channel_id)
 
     # ── Channel Search ──
 
